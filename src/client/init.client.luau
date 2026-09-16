@@ -664,7 +664,10 @@ local function renderPets(): boolean
 		-- e aí o card volta a ser exatamente o que era antes, em vez de virar um
 		-- quadrado vazio. O aviso vai para o Output uma vez por pet, para o
 		-- desenvolvedor; o jogador não vê erro nenhum.
-		local hasModel = PetViewport.Show(cell.View, petId, tint)
+		-- A cor do tier só é aplicada a partir do tier 2, igual ao pet que orbita
+		-- o jogador (ver PetRenderer.adoptPetModel). Um pet de tier 1 aparece com
+		-- as cores que o autor do modelo pintou — cara, olhos e tudo.
+		local hasModel = PetViewport.Show(cell.View, petId, if tier > 1 then tint else nil)
 		cell.Swatch.Visible = not hasModel
 		-- O aviso só vale DEPOIS que os modelos chegaram.
 		--

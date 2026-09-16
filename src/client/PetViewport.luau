@@ -183,6 +183,22 @@ local function sanitise(model: Instance, tint: Color3?)
 			descendant.CanQuery = false
 			descendant.CanTouch = false
 			descendant.CastShadow = false
+			-- Pintar SÓ quando o chamador pede, e ele só pede para tier fundido.
+			--
+			-- Era aqui o "pet sem rosto". Esta linha rodava para TODO pet, então
+			-- a cara, os olhos e as manchas do bicho viravam uma cor chapada só —
+			-- que é exatamente a aparência de um modelo sem textura, e foi assim
+			-- que o sintoma se disfarçou de problema de asset.
+			--
+			-- A regra certa já existia do outro lado: PetRenderer, que desenha o
+			-- mesmo modelo orbitando o jogador, pinta apenas quando `tier > 1`
+			-- ("um pet dourado tem que ler como dourado mesmo que o modelo tenha
+			-- chegado pintado"). O card estava aplicando a exceção como se fosse
+			-- a regra — e era por isso que o pet do mundo parecia certo e o do
+			-- card não.
+			--
+			-- Agora os dois seguem a mesma regra, e isso vale por si: o bicho no
+			-- card é o mesmo bicho que vai orbitar você.
 			if tint ~= nil then
 				descendant.Color = tint
 			end
