@@ -127,7 +127,28 @@ ObjectiveConfig.Steps = {
 		Amount = 1,
 		-- The largest of the five, deliberately: the guided opening is meant to
 		-- close on a moment worth having rather than just stopping.
-		RewardCash = 6000,
+		--
+		-- 3000, e não 6000. O valor antigo era uma coincidência aritmética que
+		-- pulava um mundo inteiro:
+		--
+		--   Vale das Esmeraldas   6 x 1 x 250 = 1.500
+		--   Caverna de Obsidiana 18 x 1 x 250 = 4.500
+		--                                     -------
+		--                                       6.000
+		--
+		-- Exatamente o prêmio. O jogador renascia, recebia 6.000 com o bolso
+		-- zerado, e comprava as duas portas de uma vez — atravessando o Vale sem
+		-- minerar uma esmeralda sequer.
+		--
+		-- E o pior é que isso PUNIA quem fizesse: chegar na Obsidiana logo após
+		-- um renascimento significa bater em pedras de 24 de vida com uma picareta
+		-- de madeira e 1 de dano. Não era um atalho, era uma armadilha que o
+		-- próprio tutorial abria.
+		--
+		-- 3000 compra o Vale (1.500) e ainda deixa troco para as primeiras
+		-- melhorias, que é exatamente onde o renascimento deve deixar o jogador:
+		-- de volta ao começo da escada, com impulso para subi-la de novo.
+		RewardCash = 3000,
 	},
 } :: { ObjectiveDefinition }
 

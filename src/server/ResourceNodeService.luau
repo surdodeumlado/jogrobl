@@ -52,9 +52,14 @@ local contributions: { [BasePart]: { [Player]: number } } = {}
 local FULL_WARNING_INTERVAL = 4
 local lastFullWarningAt: { [Player]: number } = {}
 
+local refreshHealthBar: (BasePart, number) -> ()
+
 local function setHealth(node: BasePart, health: number)
 	nodeHealth[node] = health
 	node:SetAttribute(HEALTH_ATTRIBUTE, health)
+	-- Um lugar so muda a vida, entao um lugar so redesenha a barra. Assim ela
+	-- nao tem como discordar do numero.
+	refreshHealthBar(node, health)
 end
 
 -- An ore is a cluster: a trunk (the registered node) with taper segments and
@@ -83,6 +88,115 @@ local function setClusterVisible(node: BasePart, visible: boolean)
 			-- that isn't there. Cores are never queryable.
 			child.CanQuery = visible and child.Name ~= OreModel.CORE_NAME
 		end
+	end
+end
+
+-- A barra de vida DE CADA PEDRA, presa nela e visível para todo mundo.
+--
+-- Antes existia uma barra só, no cliente, seguindo o alvo mirado. Funcionava e
+-- era insuficiente pelo motivo exato que o relato descreve: "nem todo cristal
+-- tem a vida em cima". Com um alvo por vez, você enxerga a vida da pedra em que
+-- está mirando e nenhuma das outras — então não dá para escolher onde bater, e
+-- uma pedra que você começou a quebrar e abandonou não diz mais nada.
+--
+-- Feita no SERVIDOR, e presa ao próprio nó, por duas razões:
+--
+--   * a vida já viaja como atributo, replicada de graça. Uma barra presa ao nó
+--     lê esse atributo e acompanha sem uma linha de rede a mais;
+--   * a pedra é compartilhada. Todos veem a mesma rachadura, e agora todos veem
+--     o mesmo número — que é a metade social que o veio rico já tinha.
+--
+-- MaxDistance é o que torna isto barato: o motor só desenha as que estão perto,
+-- então um campo de vinte cristais não vira vinte placas na tela.
+local attachHealthBar: (BasePart, string) -> ()
+local HEALTH_BAR_DISTANCE = 70
+
+function attachHealthBar(node: BasePart, resourceId: string)
+	if node:FindFirstChild("HealthBar") ~= nil then
+		return
+	end
+
+	local item = ItemsConfig[resourceId]
+
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "HealthBar"
+	-- Em studs, não em pixels: uma barra em Offset mantém o mesmo tamanho na
+	-- tela a qualquer distância, e vinte delas viram uma parede de interface.
+	billboard.Size = UDim2.fromScale(5.5, 0.85)
+	billboard.StudsOffset = Vector3.new(0, 3.2, 0)
+	billboard.MaxDistance = HEALTH_BAR_DISTANCE
+	-- Não AlwaysOnTop: a barra pertence à pedra, e uma pedra atrás de outra não
+	-- deve ter o número furando a da frente.
+	billboard.AlwaysOnTop = false
+	billboard.Parent = node
+
+	local track = Instance.new("Frame")
+	track.Name = "Track"
+	track.Size = UDim2.fromScale(1, 1)
+	track.BackgroundColor3 = Color3.fromRGB(12, 14, 22)
+	track.BorderSizePixel = 0
+	track.Parent = billboard
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0.5, 0)
+	corner.Parent = track
+
+	local fill = Instance.new("Frame")
+	fill.Name = "Fill"
+	fill.Size = UDim2.fromScale(1, 1)
+	fill.BackgroundColor3 = if item ~= nil then item.Color else Color3.fromRGB(120, 205, 255)
+	fill.BorderSizePixel = 0
+	fill.Parent = track
+
+	local fillCorner = Instance.new("UICorner")
+	fillCorner.CornerRadius = UDim.new(0.5, 0)
+	fillCorner.Parent = fill
+
+	local label = Instance.new("TextLabel")
+	label.Name = "Value"
+	label.Size = UDim2.fromScale(1, 1)
+	label.BackgroundTransparency = 1
+	label.Text = ""
+	label.TextColor3 = Color3.new(1, 1, 1)
+	label.TextStrokeColor3 = Color3.new(0, 0, 0)
+	label.TextStrokeTransparency = 0.2
+	label.TextScaled = true
+	label.Font = Enum.Font.FredokaOne
+	label.ZIndex = 2
+	label.Parent = track
+end
+
+-- Redesenha a barra de uma pedra. Chamada de setHealth, que é o único lugar que
+-- muda a vida — então a barra não tem como ficar defasada do número.
+function refreshHealthBar(node: BasePart, health: number)
+	local billboard = node:FindFirstChild("HealthBar")
+	if billboard == nil or not billboard:IsA("BillboardGui") then
+		return
+	end
+
+	local maxHealth = nodeMaxHealth[node] or 0
+	if maxHealth <= 0 then
+		billboard.Enabled = false
+		return
+	end
+
+	-- Escondida quando a pedra está quebrada: uma barra vazia flutuando onde não
+	-- há mais nada é pior que barra nenhuma.
+	billboard.Enabled = health > 0
+
+	local track = billboard:FindFirstChild("Track")
+	if track == nil then
+		return
+	end
+
+	local fill = track:FindFirstChild("Fill")
+	if fill ~= nil and fill:IsA("Frame") then
+		fill.Size = UDim2.fromScale(math.clamp(health / maxHealth, 0, 1), 1)
+	end
+
+	local label = track:FindFirstChild("Value")
+	if label ~= nil and label:IsA("TextLabel") then
+		label.Text = `{math.ceil(health)}/{math.floor(maxHealth)}`
 	end
 end
 
@@ -528,6 +642,7 @@ local function setupNode(node: Instance)
 	end
 
 	nodeResource[node] = resourceId
+	attachHealthBar(node, resourceId)
 	-- BossHealth, when present, overrides the resource's own health: the boss
 	-- is a Crystal node by type but a server-sized wall by health.
 	local override = node:GetAttribute("BossHealth")

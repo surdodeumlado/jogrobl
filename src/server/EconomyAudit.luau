@@ -184,6 +184,32 @@ local function auditOpening()
 		-- Uma mochila vendida entre uma etapa e a seguinte.
 		purse += perBag
 
+		-- Nenhuma recompensa do tutorial pode comprar DOIS mundos.
+		--
+		-- Checagem escrita depois de um defeito achado jogando, não lendo: o
+		-- prêmio final era 6.000 e os dois primeiros mundos custavam 1.500 e
+		-- 4.500 — exatamente 6.000. O jogador renascia e comprava as duas portas
+		-- de uma vez, pulando o Vale das Esmeraldas inteiro com uma picareta de
+		-- madeira.
+		--
+		-- Nenhum dos dois números estava errado sozinho. A soma é que estava, e
+		-- soma de tabelas diferentes é justamente o que ninguém confere ao editar
+		-- uma delas. É o mesmo formato do defeito do ovo, e por isso vira teste.
+		if step.RewardCash > 0 then
+			local ordered = ZoneConfig.GetOrderedIds()
+			local first = ZoneConfig.Zones[ordered[2]]
+			local second = ZoneConfig.Zones[ordered[3]]
+			if first ~= nil and second ~= nil then
+				local twoDoors = first.UnlockCost + second.UnlockCost
+				if step.RewardCash >= twoDoors then
+					fail(
+						`objetivo "{step.Id}" paga {step.RewardCash}, que compra os DOIS primeiros mundos`
+							.. ` ({first.DisplayName} + {second.DisplayName} = {twoDoors}) — pula um mundo inteiro`
+					)
+				end
+			end
+		end
+
 		-- A estação para onde a seta aponta tem que existir.
 		--
 		-- As quatro "falhas" que esta checagem reportou no primeiro censo eram
