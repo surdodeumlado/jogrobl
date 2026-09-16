@@ -128,6 +128,8 @@ local lastKnownUpgradeLevels: number? = nil
 -- Pets cujo modelo ja foi reportado como ausente, para o aviso sair uma vez
 -- por pet e nao a cada atualizacao da lista.
 local warnedMissingModel: { [string]: boolean } = {}
+-- Se a redesenhada pos-carregamento dos modelos de pet ja foi agendada.
+local petModelsReloaded = false
 local snapshot: any = nil
 
 --------------------------------------------------------------------------
@@ -664,7 +666,12 @@ local function renderPets(): boolean
 		-- desenvolvedor; o jogador não vê erro nenhum.
 		local hasModel = PetViewport.Show(cell.View, petId, tint)
 		cell.Swatch.Visible = not hasModel
-		if not hasModel and not warnedMissingModel[petId] then
+		-- O aviso só vale DEPOIS que os modelos chegaram.
+		--
+		-- Antes ele disparava durante a replicação e acusava de "sem modelo"
+		-- pets que existiam — foi assim que o gato apareceu no log. Um aviso que
+		-- mente é pior que nenhum, porque manda procurar no lugar errado.
+		if not hasModel and PetViewport.AssetsReady() and not warnedMissingModel[petId] then
 			warnedMissingModel[petId] = true
 			warn(`[PetViewport] "{petId}" não tem modelo no pacote — card usando o disco colorido.`)
 		end
@@ -1039,6 +1046,22 @@ local function onProfileUpdated(newSnapshot)
 	PlazaProgress.Update(snapshot)
 	PickaxePrompts.Update(snapshot)
 	hud.PlayIntro()
+
+	-- Uma redesenhada quando os modelos de pet terminarem de chegar.
+	--
+	-- A lista é montada no primeiro snapshot, que chega antes do pacote de
+	-- cinquenta e uma criaturas terminar de replicar. Sem isto os cards ficavam
+	-- nos discos coloridos até o próximo snapshot acontecer por outro motivo —
+	-- e, se o jogador abrisse a aba antes disso, a coleção inteira parecia não
+	-- ter modelo. Dispara uma vez só: WhenAssetsReady se desconecta sozinho.
+	if not petModelsReloaded then
+		petModelsReloaded = true
+		PetViewport.WhenAssetsReady(function()
+			if snapshot ~= nil then
+				renderPets()
+			end
+		end)
+	end
 
 	-- Shown once, on the very first join. Gated on the saved flag rather than
 	-- on a local variable so a rejoin never replays it.

@@ -29,10 +29,72 @@
 -- guardada, enquanto a rotação usa o valor guardado.
 
 local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local PetRenderer = require(script.Parent.PetRenderer)
 
 local PetViewport = {}
+
+-- Se os modelos JÁ CHEGARAM neste cliente.
+--
+-- Isto existe por causa de um defeito que se manifestou como "o gato não tem
+-- modelo", e a causa não tinha nada a ver com o gato.
+--
+-- O AssetLoader roda no SERVIDOR e enche ReplicatedStorage.LoadedAssets. A
+-- replicação disso para um cliente que acabou de entrar é assíncrona e são
+-- cinquenta e uma criaturas, que chegam ao longo de vários quadros. O primeiro
+-- snapshot do perfil — que é o que dispara a montagem da lista de pets —
+-- ganha essa corrida com folga.
+--
+-- Então "FindFirstChild devolveu nil" tem DOIS significados que o código
+-- tratava como um só: "este pet não existe no pacote" e "o pacote ainda não
+-- chegou". O primeiro merece aviso e disco colorido; o segundo merece esperar.
+--
+-- O AssetLoader já publicava o atributo Ready exatamente para essa distinção,
+-- e nenhum cliente lia. Agora lê.
+function PetViewport.AssetsReady(): boolean
+	local vault = ReplicatedStorage:FindFirstChild("LoadedAssets")
+	return vault ~= nil and vault:GetAttribute("Ready") == true
+end
+
+-- Chama `callback` uma vez, quando os modelos estiverem disponíveis (ou já
+-- agora, se estiverem). Quem usa: a lista de pets, para se redesenhar.
+function PetViewport.WhenAssetsReady(callback: () -> ())
+	if PetViewport.AssetsReady() then
+		task.spawn(callback)
+		return
+	end
+
+	task.spawn(function()
+		local vault = ReplicatedStorage:WaitForChild("LoadedAssets", 30)
+		if vault == nil then
+			return
+		end
+		if vault:GetAttribute("Ready") ~= true then
+			-- Com prazo: se o servidor falhou em carregar os pacotes, o atributo
+			-- nunca vem, e uma thread pendurada para sempre é pior que uma lista
+			-- que fica nos discos coloridos.
+			local connection: RBXScriptConnection? = nil
+			local done = false
+			connection = vault:GetAttributeChangedSignal("Ready"):Connect(function()
+				if vault:GetAttribute("Ready") == true and not done then
+					done = true
+					if connection ~= nil then
+						connection:Disconnect()
+					end
+					callback()
+				end
+			end)
+			task.delay(30, function()
+				if not done and connection ~= nil then
+					connection:Disconnect()
+				end
+			end)
+			return
+		end
+		callback()
+	end)
+end
 
 -- Quantas voltas por segundo. Devagar de propósito: o card é para ser olhado
 -- de relance enquanto se lê o nome embaixo, e uma rotação rápida transforma a

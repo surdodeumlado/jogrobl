@@ -185,9 +185,29 @@ local function auditOpening()
 		purse += perBag
 
 		-- A estação para onde a seta aponta tem que existir.
+		--
+		-- As quatro "falhas" que esta checagem reportou no primeiro censo eram
+		-- FALHAS DELA, não do jogo: StationConfig.Stations é uma LISTA de
+		-- definições com campo Id, e eu consultava StationConfig[stationId] como
+		-- se fosse um mapa. Toda estação existente dava nil, então todas as
+		-- quatro etapas do tutorial pareciam apontar para o vazio.
+		--
+		-- Vale registrar o formato do erro, porque é o pior tipo que um teste
+		-- pode ter: ele não deixou passar nada quebrado, mas gastou a confiança
+		-- no relatório inteiro. Um teste que acusa o inocente é pior que um teste
+		-- que não existe — da próxima vez ninguém lê a saída.
 		local stationId = step.TargetStationId
-		if stationId ~= nil and StationConfig[stationId] == nil then
-			fail(`objetivo "{step.Id}" aponta para a estação "{stationId}", que não existe em StationConfig`)
+		if stationId ~= nil then
+			local found = false
+			for _, station in StationConfig.Stations do
+				if station.Id == stationId then
+					found = true
+					break
+				end
+			end
+			if not found then
+				fail(`objetivo "{step.Id}" aponta para a estação "{stationId}", que não existe em StationConfig.Stations`)
+			end
 		end
 	end
 end

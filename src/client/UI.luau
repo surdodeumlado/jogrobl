@@ -414,15 +414,29 @@ function UI.Create()
 		title.TextStrokeColor3 = Color3.new(0, 0, 0)
 		title.TextStrokeTransparency = 0.6
 
+		-- "×" (U+00D7), e não "✕" (U+2715). A diferença é a razão do quadradinho.
+		--
+		-- O botão mostrava um QUADRADO no lugar do X, em todas as janelas. Não era
+		-- o botão: era a fonte. U+2715 vive no bloco de dingbats, que as fontes do
+		-- Roblox não cobrem, e um glifo ausente é desenhado como caixa vazia
+		-- ("tofu"). U+00D7 é o sinal de multiplicação do Latin-1, coberto por
+		-- qualquer fonte, e é visualmente o mesmo X.
+		--
+		-- NoPadding porque o padrão do botão reserva 8px de cada lado: num botão
+		-- de 38px isso deixa 22px para centrar o glifo, e com TextScaled ligado o
+		-- resultado é um X pequeno e deslocado.
 		local closeButton = Widgets.button(header, {
 			Name = "Close",
-			Text = "✕",
+			Text = "×",
 			Color = Theme.Colors.Error,
 			Size = UDim2.fromOffset(38, 38),
 			Position = UDim2.new(1, -12, 0.5, 0),
 			AnchorPoint = Vector2.new(1, 0.5),
-			TextSize = 18,
-			Radius = 12,
+			TextSize = 26,
+			TextScaled = false,
+			NoPadding = true,
+			Font = Theme.Font.Header,
+			Radius = Theme.Scale.Radius,
 		})
 		closeButton.ZIndex = 8
 
