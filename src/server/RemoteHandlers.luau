@@ -31,6 +31,46 @@ local RemoteHandlers = {}
 local DEBOUNCE_SECONDS = 0.1
 local lastFiredAt: { [Player]: { [RemoteEvent]: number } } = {}
 
+-- Teto de comprimento para qualquer string vinda do cliente.
+--
+-- O debounce por remote não protege contra isto: uma única chamada legítima já
+-- basta para entregar ao servidor uma string de vários megabytes, e o custo é
+-- pago na desserialização, antes de qualquer código deste arquivo rodar — mas
+-- tudo o que vem depois (comparação, concatenação em log, chave de tabela) roda
+-- sobre ela. Nenhum payload real do jogo chega perto disso: o mais longo é um
+-- código promocional e uma chave de pet ("petId:tier").
+--
+-- Trinta e dois é folgado para todos eles e continua sendo pequeno o bastante
+-- para que mil chamadas não custem nada.
+local MAX_STRING_LENGTH = 32
+
+-- Teto GLOBAL por jogador, somando todos os remotes.
+--
+-- O debounce é por remote, o que deixa um cliente modificado disparar treze
+-- remotes diferentes a cada 0,1s — cento e trinta chamadas por segundo, cada
+-- uma acordando um serviço, lendo um perfil e possivelmente escrevendo nele.
+-- Com cinquenta jogadores isso é carga suficiente para derrubar o servidor sem
+-- explorar defeito nenhum, só usando a porta da frente.
+--
+-- Vinte por segundo é muito acima do que qualquer jogador humano produz (o
+-- golpe mais rápido do jogo é um a cada 0,12s, e ele não passa por aqui em
+-- rajada com mais nada junto) e muito abaixo do que um loop automatizado tenta.
+local MAX_CALLS_PER_SECOND = 20
+local callWindow: { [Player]: { at: number, count: number } } = {}
+
+local function overRate(player: Player): boolean
+	local now = os.clock()
+	local window = callWindow[player]
+
+	if window == nil or now - window.at >= 1 then
+		callWindow[player] = { at = now, count = 1 }
+		return false
+	end
+
+	window.count += 1
+	return window.count > MAX_CALLS_PER_SECOND
+end
+
 local function isDebounced(player: Player, remote: RemoteEvent): boolean
 	local perPlayer = lastFiredAt[player]
 	if perPlayer == nil then
@@ -57,10 +97,19 @@ local function connect(remoteName: string, argType: string?, handler: (Player, a
 	local remote = Remotes:WaitForChild(remoteName) :: RemoteEvent
 
 	remote.OnServerEvent:Connect(function(player: Player, arg: unknown)
+		-- O teto global vem PRIMEIRO, antes do debounce por remote: o ataque que
+		-- ele cobre é justamente espalhar as chamadas entre remotes diferentes
+		-- para que nenhum debounce individual dispare.
+		if overRate(player) then
+			return
+		end
 		if isDebounced(player, remote) then
 			return
 		end
 		if argType ~= nil and typeof(arg) ~= argType then
+			return
+		end
+		if argType == "string" and #(arg :: string) > MAX_STRING_LENGTH then
 			return
 		end
 
@@ -133,6 +182,7 @@ function RemoteHandlers.Start()
 
 	Players.PlayerRemoving:Connect(function(player)
 		lastFiredAt[player] = nil
+		callWindow[player] = nil
 	end)
 end
 

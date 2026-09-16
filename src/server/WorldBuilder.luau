@@ -18,6 +18,7 @@
 -- space, which is the case the project file is actually good at.
 
 local Workspace = game:GetService("Workspace")
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local ItemsConfig = require(ReplicatedStorage.Shared.ItemsConfig)
@@ -553,7 +554,30 @@ local function buildPad(
 	facing: Vector3,
 	parent: Instance
 )
-	local pad = newDisc(name, parent, position, 1, 12)
+	-- Montado SOLTO e parenteado por ÚLTIMO. Esta ordem é a correção do bug em
+	-- que nenhum pad funcionava a partir da Caverna de Obsidiana.
+	--
+	-- Parentear é o que ANUNCIA a peça: ZoneService escuta ChildAdded da pasta
+	-- ZonePads e, ao ser chamado, lê o atributo ZoneId para saber para onde o pad
+	-- leva. O helper newDisc parenteia na hora em que cria, então o atributo era
+	-- escrito depois do anúncio: o listener chegava, não encontrava ZoneId, e
+	-- desistia sem ligar o Touched. O pad ficava lá, aceso, bonito e morto.
+	--
+	-- Não aparecia antes porque as ilhas eram todas construídas no boot, ANTES de
+	-- ZoneService conectar o ChildAdded — os pads eram varridos depois, já com o
+	-- atributo no lugar. Construir ilha sob demanda inverteu a ordem e expôs o
+	-- defeito, que sempre esteve aqui.
+	--
+	-- A regra que fica: tudo o que um ouvinte precisa ler tem que estar na peça
+	-- antes dela ter pai.
+	local pad = Instance.new("Part")
+	pad.Name = name
+	pad.Anchored = true
+	pad.Locked = true
+	pad.Shape = Enum.PartType.Cylinder
+	-- Cilindro: Size é (espessura, ⌀, ⌀) e girar 90° em Z deita o disco.
+	pad.Size = Vector3.new(1, 12, 12)
+	pad.CFrame = CFrame.new(position) * CFrame.Angles(0, 0, math.rad(90))
 	pad.Material = Enum.Material.Neon
 	-- Slightly translucent, like every other neon surface in the world now: a
 	-- solid neon disc reads as a hole punched in the floor once bloom hits it.
@@ -562,6 +586,8 @@ local function buildPad(
 	pad.CanCollide = false
 	pad:SetAttribute("ZoneId", targetZoneId)
 	Generated.Tag(pad)
+
+	pad.Parent = parent
 
 	placePortal(name, position, color, facing, parent)
 end
@@ -1988,8 +2014,15 @@ local function tintTo(instance: Instance, colour: Color3, strength: number)
 				mesh.TextureId = ""
 				mesh.VertexColor = Vector3.new(1, 1, 1)
 			end
+			-- MeshPart.TextureID não é gravável em runtime em todo contexto, e
+			-- uma atribuição proibida aqui não é um prop sem cor: é um erro que
+			-- sobe pelo cenário inteiro. Já existe um pcall acima, mas falhar no
+			-- primeiro arbusto e perder os outros mil objetos da ilha seria
+			-- trocar um defeito visual por um mundo vazio.
 			if part:IsA("MeshPart") then
-				(part :: MeshPart).TextureID = ""
+				pcall(function()
+					(part :: MeshPart).TextureID = ""
+				end)
 			end
 			for _, child in part:GetChildren() do
 				if child:IsA("Decal") or child:IsA("Texture") then
@@ -2046,10 +2079,7 @@ end
 -- charming. Twenty-five islands' worth is a phone at four frames a second, and a
 -- Script inside a scenery model is a thing running on the server forever for no
 -- reason. The effects this game wants, it creates itself and counts.
--- `keepEffects` is for the one prop whose effects ARE the prop: the waterfall is
--- two parts and eight Beams, so stripping it leaves two invisible blocks at the
--- rim. Nothing else passes it.
-local function settleProp(prop: Instance, collide: boolean, keepEffects: boolean?)
+local function settleProp(prop: Instance, collide: boolean)
 	local function fix(part: BasePart)
 		part.Anchored = true
 		part.CanCollide = collide
@@ -2065,8 +2095,6 @@ local function settleProp(prop: Instance, collide: boolean, keepEffects: boolean
 	for _, descendant in prop:GetDescendants() do
 		if descendant:IsA("BasePart") then
 			fix(descendant)
-		elseif keepEffects == true and (descendant:IsA("Beam") or descendant:IsA("Attachment")) then
-			continue
 		elseif
 			descendant:IsA("ParticleEmitter")
 			or descendant:IsA("Light")
@@ -2096,8 +2124,7 @@ local function standProp(
 	size: number,
 	parent: Instance,
 	name: string,
-	yaw: number?,
-	keepEffects: boolean?
+	yaw: number?
 ): Instance?
 	local prop = AssetLoader.Fitted(template, size)
 	if prop == nil then
@@ -2105,7 +2132,7 @@ local function standProp(
 	end
 
 	prop.Name = name
-	settleProp(prop, false, keepEffects)
+	settleProp(prop, false)
 
 	-- Scatter wants a random facing; the handful of props that have a FRONT —
 	-- water pouring off a rim — pass their own.
@@ -2123,7 +2150,21 @@ local function standProp(
 			-- what puts the BOX on the ground rather than the pivot.
 			local pivot = (prop :: Model):GetPivot()
 			local gap = pivot.Position.Y - drop
-			;(prop :: Model):PivotTo(CFrame.new(spot + Vector3.new(0, lift + gap - 0.4, 0)) * turn)
+
+			-- A rotação AUTORADA do modelo é preservada, e só o giro em Y é somado
+			-- por cima. Era isto que deitava todas as fogueiras.
+			--
+			-- PivotTo escreve o CFrame inteiro, orientação incluída. Passar
+			-- `CFrame.new(posição) * giro` não move o modelo: ele o REORIENTA para
+			-- a vertical do mundo. Numa árvore ninguém nota, porque o pivô dela já
+			-- está em pé; num modelo cujo autor deixou o pivô girado — a fogueira —
+			-- isso tomba a peça inteira de lado.
+			--
+			-- Multiplicar pela rotação original no fim mantém de pé o que foi
+			-- desenhado de pé, e o giro aleatório continua sendo em torno do eixo
+			-- vertical do MUNDO, que é onde ele tem que ser.
+			local stand = CFrame.new(spot + Vector3.new(0, lift + gap - 0.4, 0)) * turn * pivot.Rotation
+			;(prop :: Model):PivotTo(stand)
 		end)
 		if not placedOk then
 			prop:Destroy()
@@ -2131,7 +2172,10 @@ local function standProp(
 		end
 	elseif prop:IsA("BasePart") then
 		local part = prop :: BasePart
-		part.CFrame = CFrame.new(spot + Vector3.new(0, part.Size.Y / 2 - 0.4, 0)) * turn
+		-- Mesma regra da versão em Model: a rotação que a peça já tinha é mantida
+		-- e o giro só acrescenta guinada.
+		local rotation = part.CFrame.Rotation
+		part.CFrame = CFrame.new(spot + Vector3.new(0, part.Size.Y / 2 - 0.4, 0)) * turn * rotation
 	end
 
 	prop.Parent = parent
@@ -3208,39 +3252,20 @@ local function buildZoneSignature(
 )
 	local centre = definition.Center
 
-	-- Water off the rim, for the worlds that have water on them.
+	-- NÃO existe cachoeira aqui, e isso foi uma tentativa desfeita.
 	--
-	-- The single best argument the islands have for being islands. From the
-	-- middle of one you cannot see the edge drop away, so nothing on the ground
-	-- says "this is floating" — but a river running off the side and falling into
-	-- open sky says it from anywhere, and it says it about the world rather than
-	-- about the object.
-	if theme.PoolColor ~= nil then
-		local waterfall = anyProp(propsNamed("waterfall", { "Waterfall" }, "", false, 6))
-		if waterfall ~= nil then
-			for _, bearing in { 168, 192 } do
-				local direction = bearingDirection(bearing)
-				local prop = standProp(
-					waterfall,
-					centre + direction * (definition.Radius - 10) - Vector3.new(0, 6, 0),
-					54,
-					parent,
-					`{zoneId}_Waterfall`,
-					-- Turned to face out over the edge, which is the one thing a
-					-- waterfall cannot be random about.
-					math.rad(-bearing),
-					-- The only prop that keeps its effects: the falling water is
-					-- eight Beams, and the two parts left without them are two
-					-- invisible blocks on the rim.
-					true
-				)
-				if prop ~= nil then
-					tintTo(prop, theme.PoolColor, 0.5)
-				end
-			end
-		end
-	end
-
+	-- A ideia era boa no papel: do meio de uma ilha não se vê a borda cair, então
+	-- nada no chão diz "isto está flutuando", e água despencando pro céu aberto
+	-- diria isso de qualquer lugar. Na prática o modelo é feito de Beams com
+	-- direção própria — a queda é desenhada entre dois attachments, não pelo
+	-- CFrame do modelo — então girar a peça para a borda não gira a água. O
+	-- resultado foram folhas de água azul brilhante boiando de lado, na cor
+	-- errada para gelo, areia ou caramelo.
+	--
+	-- Encaixar isso exigiria posicionar os attachments um a um por mundo, que é
+	-- exatamente o trabalho manual por ilha que o gerador existe para evitar. Uma
+	-- ideia que só funciona se cada um dos vinte e cinco mundos for ajustado à
+	-- mão não é uma ideia barata: é vinte e cinco ideias.
 	-- A dune, on the worlds whose rim is already dunes.
 	--
 	-- A desert's problem is that it is FLAT, and flatness is not fixed by more
@@ -3437,7 +3462,17 @@ local function buildZoneVip(zoneId: string, definition: ZoneConfig.ZoneDefinitio
 	local doorHalfAngle = math.asin(math.clamp(VIP_DOOR_WIDTH / 2 / VIP_COURT_RADIUS, 0, 1))
 
 	for index = 1, VIP_WALL_SEGMENTS do
-		local angle = (index - 1) / VIP_WALL_SEGMENTS * math.pi * 2
+		-- O anel começa NA PORTA, e não no zero do mundo.
+		--
+		-- Sem isto o buraco não ficava centrado na entrada. Os segmentos caíam em
+		-- múltiplos de 2π/26 a partir do eixo do mundo, a porta ficava num ângulo
+		-- qualquer entre dois deles, e o vão aberto pelo corte saía torto: sobrava
+		-- cerca de três studs e meio de abertura de um lado, fora do alcance dos
+		-- pilares e da barreira. Era por ali que se entrava sem ser VIP.
+		--
+		-- Ancorando o anel na direção da porta, o corte fica simétrico por
+		-- construção, e não por sorte na aritmética.
+		local angle = doorBearing + (index - 1) / VIP_WALL_SEGMENTS * math.pi * 2
 
 		-- The gap. Measured as an angle off the doorway's bearing rather than as
 		-- a distance, so the opening stays one door wide whatever radius the
@@ -3508,6 +3543,31 @@ local function buildZoneVip(zoneId: string, definition: ZoneConfig.ZoneDefinitio
 		Enum.Material.Marble
 	).CanCollide = true
 
+	-- Ombreiras: dois blocos que ligam cada pilar da porta ao anel de muro.
+	--
+	-- Existem porque a vedação não pode depender de trigonometria dar certo. Com
+	-- o anel ancorado na porta, a conta fecha — a borda interna do primeiro
+	-- segmento mantido cai a 11,1 studs do centro e os pilares alcançam 10,9 —
+	-- mas isso é uma sobreposição de VINTE CENTÍMETROS entre uma caixa tangente a
+	-- um círculo e outra alinhada ao plano da porta. Qualquer mudança no raio do
+	-- pátio, na largura da porta ou no número de segmentos reabre a fresta, e o
+	-- sintoma é alguém entrando de graça na área que os outros pagaram.
+	--
+	-- Doze studs de profundidade de propósito: atravessam o muro por dentro e por
+	-- fora, então fecham independente do raio em que cada peça ficou. São duas
+	-- peças, escondidas atrás dos pilares, e transformam "a conta fecha" em "não
+	-- existe caminho".
+	for side = -1, 1, 2 do
+		placed(
+			`{zoneId}_VipJamb`,
+			parent,
+			Vector3.new(5.5, VIP_WALL_HEIGHT, 12),
+			doorFrame * CFrame.new(side * (VIP_DOOR_WIDTH / 2 + 4.2), VIP_WALL_HEIGHT / 2 - 2, 0),
+			marble,
+			Enum.Material.Marble
+		).CanCollide = true
+	end
+
 	-- The barrier. It fills the whole opening — floor to lintel, post to post —
 	-- because a wall somebody paid to be on the other side of does not get to
 	-- have a gap near the top that is "not wide enough to matter".
@@ -3516,17 +3576,27 @@ local function buildZoneVip(zoneId: string, definition: ZoneConfig.ZoneDefinitio
 	-- group VIP characters pass through and nobody else does. By attribute, not
 	-- by name and not by position: there are five of these now, and a service
 	-- that looks up one part called "Gate" can only ever guard one door.
-	local gate = placed(
-		`{zoneId}_VipGate`,
-		parent,
-		Vector3.new(VIP_DOOR_WIDTH + 2.4, VIP_WALL_HEIGHT + 2.4, 1),
-		doorFrame * CFrame.new(0, (VIP_WALL_HEIGHT + 2.4) / 2 - 2, 0),
-		velvet,
-		Enum.Material.ForceField
-	)
+	-- Atributo ANTES do pai, como em buildPad — e aqui o custo do engano é o
+	-- oposto do que se imagina.
+	--
+	-- VipAreaService põe toda peça com este atributo num grupo de colisão que
+	-- personagens VIP atravessam. Ele registra a peça quando ela é anunciada, ou
+	-- seja quando ganha pai. Escrito depois, o serviço não via nada, a barreira
+	-- ficava no grupo padrão — e barreira no grupo padrão colide com TODO MUNDO,
+	-- inclusive com quem pagou. O portão virava uma parede invisível justamente
+	-- para o VIP.
+	local gate = Instance.new("Part")
+	gate.Name = `{zoneId}_VipGate`
+	gate.Anchored = true
+	gate.Locked = true
+	gate.Size = Vector3.new(VIP_DOOR_WIDTH + 2.4, VIP_WALL_HEIGHT + 2.4, 1)
+	gate.CFrame = doorFrame * CFrame.new(0, (VIP_WALL_HEIGHT + 2.4) / 2 - 2, 0)
+	gate.Color = velvet
+	gate.Material = Enum.Material.ForceField
 	gate.CanCollide = true
 	gate.Transparency = 0.6
 	gate:SetAttribute("VipGate", true)
+	gate.Parent = parent
 
 	--------------------------------------------------------------
 	-- What is inside
@@ -3593,12 +3663,24 @@ local function buildZoneVip(zoneId: string, definition: ZoneConfig.ZoneDefinitio
 	-- agree, and the only way two things cannot disagree is if there is one of
 	-- them. Move the compound and its keep-out moves with it, because they are
 	-- the same object.
-	local zone = newDisc(`{zoneId}_VipZone`, parent, centre + Vector3.new(0, 20, 0), 60, VIP_COURT_RADIUS * 2 - 4)
+	-- Atributo antes do pai, pelo mesmo motivo que em buildPad: VipAreaService
+	-- registra a zona quando ela é ANUNCIADA, lendo VipZone na hora. Escrito
+	-- depois de parentear, o guarda chegava, não via nada e ia embora — e numa
+	-- ilha construída sob demanda a área VIP ficaria sem barreira, que é
+	-- justamente o que ela não pode ficar.
+	local zone = Instance.new("Part")
+	zone.Name = `{zoneId}_VipZone`
+	zone.Anchored = true
+	zone.Locked = true
+	zone.Shape = Enum.PartType.Cylinder
+	zone.Size = Vector3.new(60, VIP_COURT_RADIUS * 2 - 4, VIP_COURT_RADIUS * 2 - 4)
+	zone.CFrame = CFrame.new(centre + Vector3.new(0, 20, 0)) * CFrame.Angles(0, 0, math.rad(90))
 	zone.Transparency = 1
 	zone.CanCollide = false
 	zone.CanQuery = false
 	zone.CanTouch = false
 	zone:SetAttribute("VipZone", true)
+	zone.Parent = parent
 
 	local sign = Instance.new("BillboardGui")
 	sign.Name = "Sign"
@@ -3676,18 +3758,105 @@ function WorldBuilder.EnsureZone(zoneId: string): boolean
 	if definition == nil or definition.Authored then
 		return false
 	end
-	if builtZones[zoneId] then
-		return false
-	end
 	if zonesFolder == nil then
 		-- Called before Start, which can only happen if the module order changed.
 		return false
 	end
 
+	if builtZones[zoneId] then
+		-- Já existe — mas as portas são conferidas mesmo assim, e é de propósito.
+		-- Uma ilha que perdeu os pads no meio de uma construção anterior seria,
+		-- sem isto, uma ilha sem saída para sempre: ela consta como pronta, então
+		-- nada volta a olhar para ela.
+		pcall(WorldBuilder.EnsureGates, zoneId)
+		return false
+	end
+
 	local started = os.clock()
-	buildZone(zoneId)
+
+	-- Nunca deixa um erro subir para quem chamou.
+	--
+	-- Quem chama é o Touched de um pad e o comando /ir — e nos dois casos a
+	-- linha seguinte é o teleporte. Um erro aqui matava o handler inteiro, então
+	-- o pad simplesmente não fazia nada e não havia nada no Output ligando as
+	-- duas coisas. Falhar é aceitável; falhar em silêncio no meio de uma viagem
+	-- não é.
+	local ok, err = pcall(buildZone, zoneId)
+	if not ok then
+		warn(`[WorldBuilder] {zoneId} NÃO foi construído: {err}`)
+		-- Desmarcado para que a próxima tentativa refaça, em vez de deixar a
+		-- zona permanentemente meio pronta.
+		builtZones[zoneId] = nil
+		return false
+	end
+
 	warn(`[WorldBuilder] {zoneId} construído sob demanda em {math.floor((os.clock() - started) * 1000)}ms.`)
 	return true
+end
+
+-- Garante as duas portas da ilha, construindo as que faltarem.
+--
+-- Idempotente e SEPARADA do resto da construção, e essa separação é a correção
+-- de verdade do portão quebrado da Caverna de Obsidiana.
+--
+-- O que acontecia: `builtZones[zoneId]` era marcado no começo de buildZone e os
+-- pads saíam no fim. Uma ilha construída em segundo plano (PrepareNext) que
+-- morresse no meio ficava com chão, minério e cidade — e sem porta nenhuma.
+-- Como já constava como "construída", nada nunca mais tentava de novo: o
+-- jogador chegava, andava até a borda, e não havia pad ali. Para sempre.
+--
+-- Agora as portas são conferidas toda vez que alguém tenta usar a ilha, inclusive
+-- quando ela já existe. Uma ilha só fica sem saída se a função abaixo falhar no
+-- mesmo lugar duas vezes, e nesse caso o erro aparece com nome no Output em vez
+-- de virar um beco sem saída silencioso.
+--
+-- O princípio é maior que este bug: o que tranca o jogador é caro demais para
+-- depender de tudo o mais ter dado certo.
+function WorldBuilder.EnsureGates(zoneId: string)
+	local pads = padsFolder
+	local definition = ZoneConfig.Zones[zoneId]
+	if pads == nil or definition == nil or definition.Authored then
+		return
+	end
+
+	-- Way home, on every island. Without it a player who teleports up is
+	-- stranded on a disc in the sky with no exit but resetting.
+	--
+	-- Both pads sit on the island's rim, so both are approached from the
+	-- middle: each portal turns inward, towards the centre.
+	local homeName = `{zoneId}_PadHub`
+	if pads:FindFirstChild(homeName) == nil then
+		buildPad(
+			homeName,
+			"Hub",
+			definition.Center + bearingDirection(ROAD_TO_HUB) * PAD_RADIUS + Vector3.new(0, 0.6, 0),
+			ZoneConfig.Zones.Hub.PortalColor,
+			-bearingDirection(ROAD_TO_HUB),
+			pads
+		)
+	end
+
+	-- Way onward, if there is one. Placed on the far side from the way home, so
+	-- the two are never mistaken for each other.
+	--
+	-- O pad é construído mesmo que a ilha para onde ele leva ainda não exista, e
+	-- é nisso que o carregamento sob demanda se apoia: a PORTA é barata e a SALA
+	-- é cara, então todo mundo sempre mostra onde fica o próximo, e o próximo é
+	-- construído quando alguém atravessa.
+	local nextZoneId = ZoneConfig.GetNext(zoneId)
+	if nextZoneId ~= nil then
+		local onwardName = `{zoneId}_Pad{nextZoneId}`
+		if pads:FindFirstChild(onwardName) == nil then
+			buildPad(
+				onwardName,
+				nextZoneId,
+				definition.Center + bearingDirection(ROAD_TO_NEXT) * PAD_RADIUS + Vector3.new(0, 0.6, 0),
+				ZoneConfig.Zones[nextZoneId].PortalColor,
+				-bearingDirection(ROAD_TO_NEXT),
+				pads
+			)
+		end
+	end
 end
 
 -- The island after this one, built in the background.
@@ -3709,50 +3878,43 @@ function buildZone(zoneId: string)
 	local definition = ZoneConfig.Zones[zoneId]
 	local zonesFolder = zonesFolder :: Instance
 	local nodesFolder = nodesFolder :: Instance
-	local padsFolder = padsFolder :: Instance
 
 	builtZones[zoneId] = true
 
+	------------------------------------------------------------------
+	-- Primeiro o que é JOGO. Depois o que é enfeite.
+	------------------------------------------------------------------
+	--
+	-- Esta ordem foi invertida depois de um portão quebrado, e a lição vale mais
+	-- que o bug: os pads eram construídos por ÚLTIMO, depois do cenário. Como
+	-- `builtZones` já estava marcado no topo, qualquer erro no meio do cenário
+	-- deixava a ilha existindo, sem saída, e sem nunca mais tentar de novo — o
+	-- jogador chegava num mundo do qual não dava pra sair.
+	--
+	-- Pior: EnsureZone é chamado de dentro do Touched do pad, então o erro subia
+	-- por ali e a linha do teleporte nunca rodava. Um arbusto com um modelo
+	-- estranho podia arrombar a escada inteira de mundos.
+	--
+	-- Chão, minério, loja, cidade, VIP e PADS primeiro. São o que o jogo precisa
+	-- para funcionar e não dependem de nada buscado da loja de assets.
 	buildIsland(zoneId, definition, zonesFolder)
 	buildNodes(zoneId, definition, nodesFolder, zonesFolder)
 	buildZoneSellPoint(zoneId, definition, zonesFolder)
 	buildZoneTown(zoneId, definition, zonesFolder)
 	buildZoneVip(zoneId, definition, zonesFolder)
-	-- Last, because the scatter has to know where everything else ended up.
-	buildZoneScenery(zoneId, definition, zonesFolder)
 
-	-- Way home, on every island. Without it a player who teleports up is
-	-- stranded on a disc in the sky with no exit but resetting.
-	--
-	-- Both pads sit on the island's rim, so both are approached from the
-	-- middle: each portal turns inward, towards the centre.
-	buildPad(
-		`{zoneId}_PadHub`,
-		"Hub",
-		definition.Center + bearingDirection(ROAD_TO_HUB) * PAD_RADIUS + Vector3.new(0, 0.6, 0),
-		ZoneConfig.Zones.Hub.PortalColor,
-		-bearingDirection(ROAD_TO_HUB),
-		padsFolder
-	)
+	WorldBuilder.EnsureGates(zoneId)
 
-	-- Way onward, if there is one. Placed on the far side from the way
-	-- home, so the two are never mistaken for each other.
+	-- E só então o cenário, isolado.
 	--
-	-- The pad is built even though the island it leads to may not exist yet, and
-	-- that is the whole trick: the DOOR is cheap and the ROOM is expensive, so
-	-- every world always shows you where the next one is, and the next one gets
-	-- built when you walk through.
-	local nextZoneId = ZoneConfig.GetNext(zoneId)
-	if nextZoneId ~= nil then
-		local nextDefinition = ZoneConfig.Zones[nextZoneId]
-		buildPad(
-			`{zoneId}_Pad{nextZoneId}`,
-			nextZoneId,
-			definition.Center + bearingDirection(ROAD_TO_NEXT) * PAD_RADIUS + Vector3.new(0, 0.6, 0),
-			nextDefinition.PortalColor,
-			-bearingDirection(ROAD_TO_NEXT),
-			padsFolder
-		)
+	-- Num pcall porque é a única parte da ilha que depende de modelos buscados
+	-- da loja: geometria com escala esquisita, propriedades que não se pode
+	-- escrever em runtime, pacotes que vieram diferentes do esperado. Um mundo
+	-- feio é um problema; um mundo sem porta é um beco sem saída. O erro é
+	-- reportado com o nome da zona, que é a informação que faltava antes.
+	local ok, err = pcall(buildZoneScenery, zoneId, definition, zonesFolder)
+	if not ok then
+		warn(`[WorldBuilder] cenário de {zoneId} falhou (a ilha e os portões estão de pé): {err}`)
 	end
 end
 
@@ -3772,12 +3934,54 @@ function WorldBuilder.Start()
 	-- waits for somebody to actually go there.
 	for _, zoneId in ZoneConfig.GetOrderedIds() do
 		if not ZoneConfig.Zones[zoneId].Authored then
-			buildZone(zoneId)
+			local ok, err = pcall(buildZone, zoneId)
+			if not ok then
+				warn(`[WorldBuilder] {zoneId} falhou no boot: {err}`)
+				builtZones[zoneId] = nil
+			end
 			break
 		end
 	end
 
 	buildHubPortal(pads)
+
+	-- Vigia: a ilha onde cada jogador ESTÁ sempre tem as suas portas.
+	--
+	-- Sem isto o reparo acima nunca chega a quem mais precisa dele. Quem está
+	-- preso numa ilha sem pads não toca em pad nenhum — é justamente esse o
+	-- problema — então nada dispara a reconstrução e a pessoa fica lá até dar
+	-- reset. Todo o resto do sistema reage a uma VIAGEM; isto reage a estar
+	-- parado, que é o estado de quem não consegue viajar.
+	--
+	-- A posição é a única fonte confiável de onde alguém está: cair, morrer,
+	-- renascer e ser expulso da área VIP movem um jogador sem passar por comando
+	-- nenhum. Cinco segundos e um FindFirstChild por jogador — barato o bastante
+	-- para rodar para sempre, o que importa porque a falha que ele cobre é rara e
+	-- definitiva.
+	task.spawn(function()
+		while true do
+			task.wait(5)
+			for _, player in Players:GetPlayers() do
+				local character = player.Character
+				local rootPart = if character ~= nil then character:FindFirstChild("HumanoidRootPart") else nil
+				if rootPart == nil or not rootPart:IsA("BasePart") then
+					continue
+				end
+
+				local position = (rootPart :: BasePart).Position
+				for zoneId, definition in ZoneConfig.Zones do
+					if definition.Authored or not builtZones[zoneId] then
+						continue
+					end
+					local flat = (position - definition.Center) * Vector3.new(1, 0, 1)
+					if flat.Magnitude < definition.Radius + 40 then
+						pcall(WorldBuilder.EnsureGates, zoneId)
+						break
+					end
+				end
+			end
+		end
+	end)
 end
 
 return WorldBuilder

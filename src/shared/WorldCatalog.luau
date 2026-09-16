@@ -441,25 +441,25 @@ local STYLES: { WorldStyle } = {
 	  Fog = { 152, 202, 176 }, FogEnd = 900, Ambient = 120, Clock = 15 },
 	-- 3 Caverna de Obsidiana — close, dark, lit only by what grows in it.
 	{ Rim = "spires", Flora = "crystals", Weather = "embers",
-	  Fog = { 42, 30, 60 }, FogEnd = 420, Ambient = 58, Clock = 0 },
+	  Fog = { 62, 46, 90 }, FogEnd = 820, Ambient = 88, Clock = 3 },
 	-- 4 Pico Gelado — bright, cold, and you can see forever.
 	{ Rim = "shards", Flora = "none", Weather = "snow",
 	  Fog = { 214, 234, 248 }, FogEnd = 1600, Ambient = 150, Clock = 10 },
 	-- 5 Núcleo Vulcânico — orange murk, vents at the rim.
 	{ Rim = "chimneys", Flora = "none", Weather = "ash",
-	  Fog = { 92, 36, 22 }, FogEnd = 500, Ambient = 84, Clock = 19 },
+	  Fog = { 104, 46, 30 }, FogEnd = 760, Ambient = 96, Clock = 19 },
 	-- 6 Deserto de Âmbar — hazy, flat, enormous.
 	{ Rim = "dunes", Flora = "cactus", Weather = "dust",
 	  Fog = { 226, 194, 132 }, FogEnd = 1100, Ambient = 146, Clock = 16 },
 	-- 7 Pântano do Limo — low, green and too warm.
 	{ Rim = "dunes", Flora = "mushrooms", Weather = "spores",
-	  Fog = { 96, 116, 78 }, FogEnd = 520, Ambient = 96, Clock = 17 },
+	  Fog = { 104, 124, 86 }, FogEnd = 760, Ambient = 102, Clock = 17 },
 	-- 8 Recife de Coral — bright water light, broken arches.
 	{ Rim = "arches", Flora = "coral", Weather = "bubbles",
 	  Fog = { 118, 208, 216 }, FogEnd = 780, Ambient = 138, Clock = 13 },
 	-- 9 Abismo Azul — the same sea, far below the light.
 	{ Rim = "cliffs", Flora = "coral", Weather = "bubbles",
-	  Fog = { 22, 48, 82 }, FogEnd = 380, Ambient = 54, Clock = 2 },
+	  Fog = { 34, 66, 108 }, FogEnd = 700, Ambient = 84, Clock = 3 },
 	-- 10 Campos de Nuvem — no rim at all. The edge is the drop.
 	{ Rim = "open", Flora = "none", Weather = "none",
 	  Fog = { 244, 248, 255 }, FogEnd = 1800, Ambient = 168, Clock = 12 },
@@ -471,7 +471,7 @@ local STYLES: { WorldStyle } = {
 	  Fog = { 252, 202, 224 }, FogEnd = 1000, Ambient = 164, Clock = 12 },
 	-- 13 Bosque dos Esporos — dim, damp, everything breathing.
 	{ Rim = "cliffs", Flora = "mushrooms", Weather = "spores",
-	  Fog = { 74, 104, 92 }, FogEnd = 480, Ambient = 86, Clock = 6 },
+	  Fog = { 84, 116, 102 }, FogEnd = 740, Ambient = 96, Clock = 6 },
 	-- 14 Catedral de Prisma — a built place, not a grown one.
 	{ Rim = "pillars", Flora = "crystals", Weather = "none",
 	  Fog = { 208, 196, 234 }, FogEnd = 1200, Ambient = 142, Clock = 11 },
@@ -486,28 +486,28 @@ local STYLES: { WorldStyle } = {
 	  Fog = { 176, 168, 148 }, FogEnd = 640, Ambient = 110, Clock = 7 },
 	-- 18 Selva Esquecida — the densest, and the darkest of the living ones.
 	{ Rim = "cliffs", Flora = "trees", Weather = "spores",
-	  Fog = { 48, 92, 56 }, FogEnd = 440, Ambient = 92, Clock = 9 },
+	  Fog = { 58, 104, 66 }, FogEnd = 720, Ambient = 98, Clock = 9 },
 	-- 19 Salão dos Espelhos — flat white, no shadows, no distance.
 	{ Rim = "pillars", Flora = "crystals", Weather = "none",
 	  Fog = { 232, 238, 246 }, FogEnd = 900, Ambient = 176, Clock = 12 },
 	-- 20 Minas Magnéticas — underground again, and humming.
 	{ Rim = "spires", Flora = "crystals", Weather = "sparks",
-	  Fog = { 56, 46, 68 }, FogEnd = 400, Ambient = 62, Clock = 1 },
+	  Fog = { 72, 60, 88 }, FogEnd = 700, Ambient = 86, Clock = 2 },
 	-- 21 Deserto de Vidro — bright, sharp, reflective.
 	{ Rim = "dunes", Flora = "crystals", Weather = "dust",
 	  Fog = { 238, 222, 186 }, FogEnd = 1500, Ambient = 158, Clock = 17 },
 	-- 22 Fossa de Plasma — magenta and violent.
 	{ Rim = "chimneys", Flora = "none", Weather = "embers",
-	  Fog = { 96, 22, 66 }, FogEnd = 460, Ambient = 76, Clock = 21 },
+	  Fog = { 112, 34, 82 }, FogEnd = 740, Ambient = 92, Clock = 21 },
 	-- 23 Jardim da Nébula — space that somehow grew things.
 	{ Rim = "arches", Flora = "crystals", Weather = "spores",
 	  Fog = { 52, 42, 92 }, FogEnd = 820, Ambient = 74, Clock = 3 },
 	-- 24 Limiar do Vazio — almost nothing left.
 	{ Rim = "spires", Flora = "none", Weather = "embers",
-	  Fog = { 16, 14, 24 }, FogEnd = 300, Ambient = 40, Clock = 0 },
+	  Fog = { 30, 26, 44 }, FogEnd = 660, Ambient = 74, Clock = 1 },
 	-- 25 Singularidade — everything white, no horizon, no sky.
 	{ Rim = "open", Flora = "crystals", Weather = "sparks",
-	  Fog = { 255, 255, 255 }, FogEnd = 260, Ambient = 200, Clock = 12 },
+	  Fog = { 255, 255, 255 }, FogEnd = 640, Ambient = 200, Clock = 12 },
 }
 
 WorldCatalog.Styles = STYLES

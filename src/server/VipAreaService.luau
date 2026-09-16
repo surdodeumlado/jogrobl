@@ -284,9 +284,18 @@ function VipAreaService.Start()
 	for _, descendant in Workspace:GetDescendants() do
 		consider(descendant)
 	end
-	-- And anything built later. The builders all run before this, but a listener
-	-- costs nothing and removes the ordering from the list of things that have to
-	-- stay true.
+	-- E o que for construído depois — que hoje é a maior parte.
+	--
+	-- Este comentário dizia "os construtores todos rodam antes disto, mas um
+	-- listener não custa nada". Deixou de ser verdade: as ilhas passaram a ser
+	-- construídas sob demanda, então quase toda barreira e todo pátio do jogo
+	-- chegam por aqui e não pela varredura acima. O que era cinto e suspensório
+	-- virou o caminho principal.
+	--
+	-- Isso impõe uma condição aos construtores: os atributos têm que estar na
+	-- peça ANTES dela ganhar pai, porque é o pai que dispara este evento. Uma
+	-- barreira anunciada sem o atributo fica no grupo de colisão padrão — e no
+	-- grupo padrão ela bloqueia todo mundo, inclusive quem pagou.
 	Workspace.DescendantAdded:Connect(consider)
 
 	Players.PlayerAdded:Connect(onPlayerAdded)

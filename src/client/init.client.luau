@@ -539,11 +539,44 @@ local function renderQuests(): boolean
 	return anyClaimable
 end
 
+-- Qual minério o jogador tem na frente AGORA, para a afinidade poder aparecer.
+--
+-- Por posição, e não pelo último portal atravessado, pelo mesmo motivo que em
+-- WorldMood: cair, morrer e renascer movem alguém sem passar por viagem nenhuma,
+-- e a posição é a única coisa que é sempre verdade.
+--
+-- Só de exibição — o servidor recalcula a afinidade contra a pedra que os pets
+-- estão de fato batendo, e é esse número que paga.
+local function currentWorldOre(): (string?, string?)
+	local character = Players.LocalPlayer.Character
+	local rootPart = if character ~= nil then character:FindFirstChild("HumanoidRootPart") else nil
+	if rootPart == nil or not rootPart:IsA("BasePart") then
+		return nil, nil
+	end
+
+	local position = (rootPart :: BasePart).Position
+	for _, definition in ZoneConfig.Zones do
+		local flat = (position - definition.Center) * Vector3.new(1, 0, 1)
+		if flat.Magnitude < definition.Radius + 40 then
+			return definition.ResourceId, definition.DisplayName
+		end
+	end
+
+	return nil, nil
+end
+
 local function renderPets(): boolean
 	local equipped: { [string]: boolean } = {}
 	for _, key in snapshot.EquippedPets or {} do
 		equipped[key] = true
 	end
+
+	-- A afinidade existia só dentro da conta de dano: um pet batia 2,5x mais
+	-- forte no minério do próprio mundo e NADA no jogo dizia isso. É a mecânica
+	-- que separa uma coleção de uma lista — sem ela, duzentos pets colapsam em
+	-- um time correto — e ela estava sendo jogada fora por falta de uma linha de
+	-- texto.
+	local hereOre, hereWorld = currentWorldOre()
 
 	local equippedCount = #(snapshot.EquippedPets or {})
 	local slots = snapshot.PetSlots or Constants.BASE_PET_SLOTS
@@ -596,19 +629,29 @@ local function renderPets(): boolean
 
 		local bonus = definition.CashBonus * (if tierDefinition ~= nil then tierDefinition.BonusMultiplier else 1)
 
+		-- O raio marca quem é forte NESTE mundo, e ele ganha do resto da
+		-- informação do card de propósito: a porcentagem de Cash é a mesma em
+		-- todo lugar, enquanto "este aqui bate 2,5x mais forte agora" é a única
+		-- coisa no painel que muda conforme onde o jogador está. É por isso que
+		-- ela vira o texto principal quando vale, em vez de virar mais uma linha.
+		local hasAffinityHere = hereOre ~= nil and definition.Affinity == hereOre
+		cell.Mark.Text = if hasAffinityHere then "⚡" else ""
+
 		if isEquipped then
-			cell.Status.Text = `EQUIPADO  x{held}`
-			cell.Status.TextColor3 = Theme.Colors.Ready
-			cell.Stroke.Color = Theme.Colors.Ready
+			cell.Status.Text = if hasAffinityHere then `EQUIPADO  ·  ⚡ 2.5x AQUI` else `EQUIPADO  x{held}`
+			cell.Status.TextColor3 = if hasAffinityHere then Theme.Colors.Cash else Theme.Colors.Ready
+			cell.Stroke.Color = if hasAffinityHere then Theme.Colors.Cash else Theme.Colors.Ready
 		else
-			cell.Status.Text = `x{held}  ·  +{math.floor(bonus * 100)}%`
-			cell.Status.TextColor3 = Theme.Colors.TextMuted
-			cell.Stroke.Color = PetConfig.DisplayColor(petId, tier)
+			cell.Status.Text = if hasAffinityHere
+				then `x{held}  ·  ⚡ 2.5x AQUI`
+				else `x{held}  ·  +{math.floor(bonus * 100)}%`
+			cell.Status.TextColor3 = if hasAffinityHere then Theme.Colors.Cash else Theme.Colors.TextMuted
+			cell.Stroke.Color = if hasAffinityHere then Theme.Colors.Cash else PetConfig.DisplayColor(petId, tier)
 			if equippedCount < slots then
 				hasIdleSlot = true
 			end
 		end
-		cell.Stroke.Thickness = 3
+		cell.Stroke.Thickness = if hasAffinityHere then 4 else 3
 
 		-- Fusion offer. An equipped copy is spoken for, so it can't be fuel —
 		-- the server enforces the same thing, and showing a button that would
@@ -624,7 +667,16 @@ local function renderPets(): boolean
 		end
 	end
 
-	hud.PetsSummary.Text = `Equipados {equippedCount}/{slots}  ·  Índice {discovered}/{totalSpecies}`
+	-- A regra da afinidade dita uma vez, no cabeçalho, em vez de num tutorial.
+	--
+	-- O painel de pets é onde a decisão é tomada, então é onde a regra tem que
+	-- estar. Só aparece quando o jogador está EM um mundo, porque fora deles a
+	-- frase não teria a que se referir.
+	local summary = `Equipados {equippedCount}/{slots}  ·  Índice {discovered}/{totalSpecies}`
+	if hereWorld ~= nil then
+		summary ..= `\n⚡ Pets de {hereWorld} mineram 2.5x mais rápido aqui`
+	end
+	hud.PetsSummary.Text = summary
 
 	return hasIdleSlot
 end

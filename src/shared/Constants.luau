@@ -225,30 +225,42 @@ return {
 	STARTER_CASH = 0,
 	STARTER_PET = "",
 
-	-- Prints the HUD's real absolute geometry to the output (see
-	-- HudDiagnostic). Development aid only — leave it false unless you're
-	-- actively chasing a layout bug, because it's noisy on purpose.
-	-- ON, temporarily, while the mobile layout is being fixed. It flags any
-	-- element that is zero-sized, off-screen, clipped at an edge or overflowing
-	-- its parent — which is exactly the bug that put the rebirth bar off the
-	-- bottom of the screen. Turn it back off once the layout is settled.
-	HUD_DIAGNOSTIC = true,
-
-	-- Floats one line above the player the first time they mine, saying whether
-	-- the shoulder joint was found, whether an animation loaded, and whether a
-	-- pickaxe exists.
+	--------------------------------------------------------------------
+	-- Diagnósticos de desenvolvimento
+	--------------------------------------------------------------------
 	--
-	-- On, temporarily, and it should come off the moment the swing is settled.
-	-- It exists because six rounds of "still no mining animation" were each
-	-- diagnosed by asking for a line from the Studio output that never came
-	-- back, which meant guessing. A diagnostic nobody has to go and look for is
-	-- worth a line of clutter until the question is answered — and if NOTHING
-	-- appears above the player, that is the answer: this code is not running.
-	MINING_DIAGNOSTIC = true,
+	-- Os três estavam LIGADOS, e os três foram ligados "temporariamente" durante
+	-- caças a bugs que já terminaram. É assim que um diagnóstico chega em
+	-- produção: ninguém decide deixá-lo, ninguém lembra de tirá-lo.
+	--
+	-- Custo real de deixar ligado num jogo publicado: o HudDiagnostic imprime
+	-- cinquenta linhas de geometria por jogador a cada abertura de tela, o
+	-- MINING_DIAGNOSTIC pendura um texto em cima do personagem de todo mundo na
+	-- primeira picaretada, e o WORLD_AUDIT varre o Workspace inteiro procurando
+	-- faces coplanares — um custo O(n²) sobre milhares de peças, no boot, em todo
+	-- servidor que sobe.
+	--
+	-- Ligue um de cada vez quando estiver perseguindo o problema que ele resolve,
+	-- e desligue junto com o commit da correção.
 
-	-- Scans the built world for coplanar faces (the ones that flicker) and
-	-- prints a report. Cheap enough to leave on: it runs once, after the
-	-- builders finish, and it is the only thing standing between this project
-	-- and a fifth round of the same bug.
-	WORLD_AUDIT = true,
+	-- Imprime a geometria absoluta real da HUD (ver HudDiagnostic). Sinaliza
+	-- elemento com tamanho zero, fora da tela, cortado na borda ou vazando do
+	-- pai — foi o que achou a barra de rebirth pendurada fora da tela.
+	HUD_DIAGNOSTIC = false,
+
+	-- Flutua uma linha acima do jogador na primeira picaretada, dizendo se a
+	-- junta do ombro foi encontrada, se alguma animação carregou e se existe
+	-- picareta. Existe porque seis rodadas de "continua sem animação" foram
+	-- diagnosticadas pedindo uma linha do output que nunca vinha.
+	MINING_DIAGNOSTIC = false,
+
+	-- Varre o mundo construído procurando faces coplanares (as que piscam) e
+	-- imprime um relatório com o censo de peças.
+	--
+	-- Este era descrito como "barato o bastante para deixar ligado", e não é: a
+	-- checagem de coplanaridade compara peças entre si, então o custo cresce com
+	-- o quadrado do tamanho do mundo. Continua sendo a única defesa contra a
+	-- volta daquele bug, então fica ligado em Studio e desligado em servidor
+	-- publicado — onde não há ninguém para ler o relatório de qualquer forma.
+	WORLD_AUDIT = game:GetService("RunService"):IsStudio(),
 }

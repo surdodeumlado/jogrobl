@@ -98,7 +98,13 @@ local function blendTo(fogColor: Color3, fogEnd: number, ambient: Color3, clock:
 			Decay = fogColor:Lerp(Color3.new(0, 0, 0), 0.45),
 			-- A short view distance means a thick sky. One number driving both
 			-- keeps a foggy world from having a crisp horizon behind the fog.
-			Density = math.clamp(0.5 - fogEnd / 4000, 0.12, 0.46),
+			--
+			-- Capped at 0.30 rather than 0.46, and that is the fix for the real
+			-- complaint about the obsidian cave: an Atmosphere past about a third
+			-- stops being haze and becomes an opaque dome, so the SKY disappears
+			-- and the world reads as a room with a lid. Dark is a lighting
+			-- decision and is kept; not being able to see upward is not.
+			Density = math.clamp(0.42 - fogEnd / 5000, 0.1, 0.3),
 		})
 		table.insert(tweens, atmosphereTween)
 		atmosphereTween:Play()

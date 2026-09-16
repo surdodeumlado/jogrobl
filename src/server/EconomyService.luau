@@ -9,6 +9,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local PlayerDataManager = require(script.Parent.PlayerDataManager)
 local PlayerStateService = require(script.Parent.PlayerStateService)
 local QuestService = require(script.Parent.QuestService)
+local Telemetry = require(script.Parent.Telemetry)
 local EffectsService = require(script.Parent.EffectsService)
 -- Safe to require directly: PickaxeService reaches PlayerStateService through
 -- RegisterSnapshotProvider rather than by being required from it, so there is
@@ -215,6 +216,11 @@ function EconomyService.GrantResource(player: Player, resourceId: string, amount
 	profile.Data.Inventory[resourceId] = (profile.Data.Inventory[resourceId] or 0) + stored
 	profile.Data.TotalMined += stored
 
+	-- Primeiro degrau do funil. Idempotente do lado da Telemetry, então não
+	-- precisa de checagem aqui — e é melhor assim: um "if é a primeira vez"
+	-- espalhado por seis call sites é seis lugares para a regra divergir.
+	Telemetry.Step(player, "FirstMine")
+
 	PlayerStateService.Refresh(player)
 	QuestService.RecordProgress(player, "CollectResource", stored)
 
@@ -273,6 +279,12 @@ function EconomyService.SellInventory(player: Player): number
 	local earned = math.floor(subtotal * EconomyService.GetCashMultiplier(profile.Data))
 	profile.Data.Cash += earned
 	profile.Data.TotalSells += 1
+
+	Telemetry.Step(player, "FirstSell")
+	-- A venda é de longe a maior fonte de Cash do jogo, então é a linha de base
+	-- contra a qual toda outra fonte é lida no painel.
+	Telemetry.Cash(player, "source", earned, "Venda", profile.Data.Cash)
+
 	PlayerStateService.Refresh(player)
 	QuestService.RecordProgress(player, "SellInventory", 1)
 	return earned
@@ -297,6 +309,15 @@ function EconomyService.Rebirth(player: Player): boolean
 	if profile == nil then
 		return false
 	end
+
+	-- Reportado ANTES de zerar: o valor gasto no renascimento é o Cash que o
+	-- jogador tinha, e depois da linha abaixo esse número não existe mais.
+	--
+	-- É o maior sumidouro do jogo por ordem de grandeza, e é o único em que o
+	-- jogador entrega tudo de uma vez — se alguma coisa na curva estiver errada,
+	-- é aqui que aparece primeiro.
+	Telemetry.Cash(player, "sink", profile.Data.Cash, "Renascimento", 0)
+	Telemetry.Step(player, "FirstRebirth")
 
 	profile.Data.Rebirths += 1
 	profile.Data.CashMultiplier = Constants.REBIRTH_MULTIPLIER_GROWTH ^ profile.Data.Rebirths

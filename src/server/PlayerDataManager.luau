@@ -65,6 +65,15 @@ export type ProfileData = {
 	TotalSells: number,
 	ObjectivesClaimed: { [string]: boolean },
 	SeenWelcome: boolean,
+	-- Marcos do funil já reportados, para que cada um seja contado UMA vez na
+	-- vida do jogador. Ver Telemetry.
+	--
+	-- Guardado no perfil e não em memória porque a pergunta que ele responde é
+	-- "quantos jogadores chegaram ao primeiro rebirth" — e um jogador que volta
+	-- amanhã e renasce de novo não é um jogador novo chegando lá. Em memória, a
+	-- cada sessão ele contaria outra vez e o funil mostraria uma retenção que
+	-- não existe.
+	AnalyticsSteps: { [string]: boolean },
 }
 
 local PROFILE_TEMPLATE: ProfileData = {
@@ -97,6 +106,7 @@ local PROFILE_TEMPLATE: ProfileData = {
 	TotalSells = 0,
 	ObjectivesClaimed = {},
 	SeenWelcome = false,
+	AnalyticsSteps = {},
 }
 
 local ProfileStore = ProfileService.GetProfileStore("PlayerData", PROFILE_TEMPLATE)
@@ -180,11 +190,32 @@ local function migrate(data: ProfileData)
 	end
 end
 
+-- Quem já está sendo carregado. Uma entrada aqui significa "existe um
+-- LoadProfileAsync em voo para este jogador".
+local loading: { [Player]: boolean } = {}
+
 local function onPlayerAdded(player: Player)
+	-- Guarda contra carregar o MESMO jogador duas vezes, que é uma corrida real
+	-- e não teórica.
+	--
+	-- Start() conecta PlayerAdded e logo depois varre Players:GetPlayers(), para
+	-- cobrir quem entrou antes dos módulos terminarem de se exigir. Um jogador
+	-- que entre exatamente entre as duas linhas aparece nas duas — e aí duas
+	-- chamadas de LoadProfileAsync disputam a mesma chave. Como usamos
+	-- "ForceLoad", a segunda ROUBA a sessão da primeira, o que dispara
+	-- ListenToRelease e expulsa o jogador com "sua sessão foi encerrada em outro
+	-- lugar" no próprio login. Uma falha rara, confusa, e que aparece como perda
+	-- de dados para quem sofre.
+	if loading[player] or profiles[player] ~= nil then
+		return
+	end
+	loading[player] = true
+
 	-- "ForceLoad" steals the session from a previous server that still holds
 	-- the lock (e.g. it crashed without releasing) instead of refusing to
 	-- load — fine for a single-place MVP with no cross-server handoff yet.
 	local profile = ProfileStore:LoadProfileAsync(`{player.UserId}`, "ForceLoad")
+	loading[player] = nil
 
 	if profile == nil then
 		-- The DataStore call itself failed after retries. Kick instead of
@@ -211,6 +242,7 @@ local function onPlayerAdded(player: Player)
 end
 
 local function onPlayerRemoving(player: Player)
+	loading[player] = nil
 	local profile = profiles[player]
 	if profile ~= nil then
 		profile:Release()

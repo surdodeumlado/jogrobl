@@ -7,6 +7,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local PlayerDataManager = require(script.Parent.PlayerDataManager)
 local PlayerStateService = require(script.Parent.PlayerStateService)
+local Telemetry = require(script.Parent.Telemetry)
 local UpgradeConfig = require(ReplicatedStorage.Shared.UpgradeConfig)
 
 local UpgradeService = {}
@@ -40,6 +41,12 @@ function UpgradeService.BuyUpgrade(player: Player, upgradeId: string): boolean
 
 	profile.Data.Cash -= cost
 	profile.Data.Upgrades[upgradeId] = currentLevel + 1
+
+	Telemetry.Step(player, "FirstUpgrade")
+	-- A razão carrega QUAL melhoria, porque a pergunta interessante não é
+	-- "quanto foi para melhorias" e sim "qual delas ninguém compra" — uma linha
+	-- da árvore que não aparece no painel é uma linha que não vale o que custa.
+	Telemetry.Cash(player, "sink", cost, `Melhoria:{upgradeId}`, profile.Data.Cash)
 
 	PlayerStateService.Refresh(player)
 

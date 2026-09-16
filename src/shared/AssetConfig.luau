@@ -148,11 +148,6 @@ AssetConfig.Packages = {
 	-- Classic Roblox flowers. Scattered only where something grows.
 	Flowers = 5344246067,
 
-	-- Water falling off the rim, on worlds that have water on them. An island
-	-- floating in the sky that pours over its own edge explains the sky better
-	-- than anything standing on the ground can.
-	Waterfall = 86689582463306,
-
 	-- Drifts above the two worlds made of sky and sugar.
 	CandyCloud = 129082848049290,
 
@@ -211,6 +206,19 @@ end
 -- valley to put it in.
 AssetConfig.Reserve = {
 	River = 4950595000,
+
+	-- Tentada e retirada, e o motivo é do mesmo tipo do rio.
+	--
+	-- A queda d'água é desenhada por Beams entre dois attachments, não pelo CFrame
+	-- do modelo. Girar a peça para a borda da ilha não gira a água: ela continua
+	-- caindo na direção em que o autor a desenhou. Nas ilhas saiu como folhas de
+	-- água azul brilhante boiando de lado, na cor errada para gelo, areia ou
+	-- caramelo.
+	--
+	-- Só encaixaria posicionando os attachments a mão, mundo a mundo — que é o
+	-- trabalho manual por ilha que o gerador existe para não precisar. Fica o id
+	-- caso um dia haja um lugar autorado onde ela caiba.
+	Waterfall = 86689582463306,
 }
 
 -- Which package holds each egg's model, by the egg's Order in EggConfig.

@@ -10,6 +10,7 @@ local QuestService = require(script.Parent.QuestService)
 local PetService = require(script.Parent.PetService)
 local EconomyService = require(script.Parent.EconomyService)
 local Notifier = require(script.Parent.Notifier)
+local Telemetry = require(script.Parent.Telemetry)
 local EggConfig = require(ReplicatedStorage.Shared.EggConfig)
 local PetConfig = require(ReplicatedStorage.Shared.PetConfig)
 
@@ -86,6 +87,9 @@ function EggService.Hatch(player: Player, eggId: string): (boolean, string?)
 	-- nothing for them, and making a first-time hatcher go hunting for the
 	-- pets panel to find that out is the easiest way to waste the reveal.
 	PetService.TryAutoEquip(player, PetConfig.Key(petId, 1))
+
+	Telemetry.Step(player, "FirstPet")
+	Telemetry.Cash(player, "sink", eggDefinition.Cost, `Ovo:{eggId}`, profile.Data.Cash)
 
 	PlayerStateService.Refresh(player)
 	QuestService.RecordProgress(player, "HatchEgg", 1)

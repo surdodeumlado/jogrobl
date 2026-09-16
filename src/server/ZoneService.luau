@@ -23,8 +23,10 @@ local PlayerDataManager = require(script.Parent.PlayerDataManager)
 local PlayerStateService = require(script.Parent.PlayerStateService)
 local Notifier = require(script.Parent.Notifier)
 local WorldBuilder = require(script.Parent.WorldBuilder)
+local Telemetry = require(script.Parent.Telemetry)
 local ZoneConfig = require(ReplicatedStorage.Shared.ZoneConfig)
 local ItemsConfig = require(ReplicatedStorage.Shared.ItemsConfig)
+local PetConfig = require(ReplicatedStorage.Shared.PetConfig)
 local Format = require(ReplicatedStorage.Shared.Format)
 
 local ZoneService = {}
@@ -127,6 +129,74 @@ local function onPadTouched(zoneId: string, hit: BasePart)
 	-- And the one after it, in the background, so the next door the player walks
 	-- through costs nothing.
 	WorldBuilder.PrepareNext(zoneId)
+
+	ZoneService.NudgeAffinity(player, zoneId)
+end
+
+-- Avisa, na chegada, que existe um pet guardado que é forte AQUI.
+--
+-- Este é o lugar certo para ensinar afinidade e não é uma preferência de
+-- estilo. A regra — um pet bate 2,5x mais forte no minério do próprio mundo —
+-- é a que transforma duzentos pets numa coleção em vez de uma lista, e ela era
+-- completamente invisível: vivia dentro de uma multiplicação no servidor.
+--
+-- Um tutorial explicaria isso no minuto zero, quando o jogador não tem pet
+-- nenhum e a frase não significa nada. Aqui ela chega no único instante em que
+-- é acionável: você acabou de pisar no mundo, e o bicho que serve está na sua
+-- mochila. Ensinar pelo jogo em vez de por popup era o pedido.
+--
+-- Uma vez por mundo por sessão. Repetir a cada travessia transformaria a dica
+-- em ruído, e o jogador atravessa a mesma porta dezenas de vezes por run.
+local nudged: { [Player]: { [string]: boolean } } = {}
+
+function ZoneService.NudgeAffinity(player: Player, zoneId: string)
+	local definition = ZoneConfig.Zones[zoneId]
+	local profile = PlayerDataManager.GetProfile(player)
+	if definition == nil or profile == nil then
+		return
+	end
+
+	local resourceId = definition.ResourceId
+	if resourceId == nil then
+		return
+	end
+
+	local seen = nudged[player]
+	if seen == nil then
+		seen = {}
+		nudged[player] = seen
+	end
+	if seen[zoneId] then
+		return
+	end
+
+	local equipped: { [string]: boolean } = {}
+	for _, key in profile.Data.EquippedPets do
+		equipped[key] = true
+	end
+
+	-- Procura um pet POSSUÍDO, com afinidade daqui, que NÃO esteja equipado.
+	-- Se o melhor pet para este mundo já está no time, não há nada a ensinar e a
+	-- dica seria uma interrupção sem conteúdo.
+	for key, count in profile.Data.PetTiers do
+		if count <= 0 or equipped[key] then
+			continue
+		end
+
+		local petId = PetConfig.Parse(key)
+		local pet = if petId ~= nil then PetConfig.Pets[petId] else nil
+		if pet ~= nil and pet.Affinity == resourceId then
+			seen[zoneId] = true
+			Notifier.Send(
+				player,
+				"info",
+				`⚡ Seu {pet.DisplayName} mina 2.5x mais rápido aqui — equipe ele!`
+			)
+			return
+		end
+	end
+
+	seen[zoneId] = true
 end
 
 -- A floating label above the pad naming the zone, what it pays and what it
@@ -206,6 +276,14 @@ function ZoneService.TryUnlock(player: Player, zoneId: string): boolean
 
 	profile.Data.Cash -= definition.UnlockCost
 	profile.Data.UnlockedZones[zoneId] = true
+
+	Telemetry.Step(player, "FirstWorld")
+	Telemetry.Cash(player, "sink", definition.UnlockCost, `Mundo:{zoneId}`, profile.Data.Cash)
+	-- Este é o gráfico que responde "onde todo mundo para". Com vinte e cinco
+	-- mundos, um deles é a parede — e sem isto só dá para descobrir qual
+	-- perguntando a quem já foi embora.
+	Telemetry.WorldReached(player, definition.Order, definition.DisplayName)
+
 	PlayerStateService.Refresh(player)
 	Notifier.Send(player, "success", `{definition.DisplayName} aberta! Pise no pad.`)
 
@@ -227,7 +305,32 @@ local function setupPad(pad: Instance)
 	local zoneId = pad:GetAttribute("ZoneId")
 	local zoneDefinition = if typeof(zoneId) == "string" then ZoneConfig.Zones[zoneId] else nil
 	if zoneDefinition == nil then
-		warn(`ZoneService: pad {pad:GetFullName()} has no valid ZoneId attribute`)
+		-- Talvez o atributo ainda não tenha chegado, e isso não é hipotético: uma
+		-- peça é ANUNCIADA no instante em que ganha pai, então um construtor que
+		-- parenteia antes de escrever os atributos entrega aqui um pad sem destino.
+		-- Era exatamente esse o defeito que deixava todo pad construído sob demanda
+		-- aceso e morto.
+		--
+		-- A origem foi corrigida (buildPad agora parenteia por último), mas esperar
+		-- pelo atributo custa uma conexão e cobre o caso geral — inclusive um
+		-- construtor futuro que repita o mesmo engano.
+		local connection: RBXScriptConnection? = nil
+		connection = pad:GetAttributeChangedSignal("ZoneId"):Connect(function()
+			if typeof(pad:GetAttribute("ZoneId")) == "string" then
+				if connection ~= nil then
+					connection:Disconnect()
+				end
+				setupPad(pad)
+			end
+		end)
+
+		-- Depois de um segundo já não é atraso, é ausência: aí sim vale avisar.
+		task.delay(1, function()
+			if connection ~= nil and connection.Connected then
+				connection:Disconnect()
+				warn(`ZoneService: pad {pad:GetFullName()} continua sem atributo ZoneId válido`)
+			end
+		end)
 		return
 	end
 
@@ -265,6 +368,7 @@ function ZoneService.Start()
 
 	Players.PlayerRemoving:Connect(function(player)
 		lastTeleportAt[player] = nil
+		nudged[player] = nil
 	end)
 end
 
