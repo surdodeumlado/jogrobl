@@ -21,6 +21,7 @@ local Theme = require(script.Theme)
 local Widgets = require(script.Widgets)
 local Objectives = require(script.Objectives)
 local PetRenderer = require(script.PetRenderer)
+local PetViewport = require(script.PetViewport)
 local Audio = require(script.Audio)
 local HudDiagnostic = require(script.HudDiagnostic)
 local RebirthEffect = require(script.RebirthEffect)
@@ -94,6 +95,7 @@ end)
 local hud = UI.Create()
 Objectives.Start(hud)
 PetRenderer.Start()
+PetViewport.Start()
 Audio.Start()
 RebirthEffect.Start()
 WorldFx.Start()
@@ -123,6 +125,9 @@ local lastZoneName: string? = nil
 local lastUnlockedZones: { [string]: boolean }? = nil
 local lastDiscoveryAt = 0
 local lastKnownUpgradeLevels: number? = nil
+-- Pets cujo modelo ja foi reportado como ausente, para o aviso sair uma vez
+-- por pet e nao a cada atualizacao da lista.
+local warnedMissingModel: { [string]: boolean } = {}
 local snapshot: any = nil
 
 --------------------------------------------------------------------------
@@ -626,8 +631,16 @@ local function renderPets(): boolean
 		cell.Root.Visible = tier == 1 or held > 0 or isEquipped
 
 		if held <= 0 and not isEquipped then
+			-- Não descoberto: o quadro 3D é esvaziado e a silhueta volta.
+			--
+			-- Mostrar o modelo de um pet que o jogador nunca viu entregaria a
+			-- descoberta de graça, que é exatamente o que o "?" existe para
+			-- proteger. Esvaziar também devolve a memória do clone.
+			PetViewport.Clear(cell.View)
+			cell.Swatch.Visible = true
 			cell.Swatch.BackgroundColor3 = Theme.Colors.Disabled
 			cell.Mark.Text = "?"
+			cell.Bolt.Text = ""
 			cell.Name.Text = "???"
 			cell.Status.Text = definition.Rarity
 			cell.Status.TextColor3 = Theme.Colors.TextMuted
@@ -638,10 +651,23 @@ local function renderPets(): boolean
 			continue
 		end
 
-		cell.Swatch.BackgroundColor3 = PetConfig.DisplayColor(petId, tier)
-		cell.Mark.Text = ""
+		local tint = PetConfig.DisplayColor(petId, tier)
+		cell.Swatch.BackgroundColor3 = tint
 		cell.Name.Text = PetConfig.DisplayName(petId, tier)
 		cell.Root.BackgroundColor3 = Theme.Colors.PanelRaised
+
+		-- O modelo 3D, e o disco colorido como reserva.
+		--
+		-- Show devolve false quando o pacote de pets não trouxe aquela criatura —
+		-- e aí o card volta a ser exatamente o que era antes, em vez de virar um
+		-- quadrado vazio. O aviso vai para o Output uma vez por pet, para o
+		-- desenvolvedor; o jogador não vê erro nenhum.
+		local hasModel = PetViewport.Show(cell.View, petId, tint)
+		cell.Swatch.Visible = not hasModel
+		if not hasModel and not warnedMissingModel[petId] then
+			warnedMissingModel[petId] = true
+			warn(`[PetViewport] "{petId}" não tem modelo no pacote — card usando o disco colorido.`)
+		end
 
 		local bonus = definition.CashBonus * (if tierDefinition ~= nil then tierDefinition.BonusMultiplier else 1)
 
@@ -651,7 +677,7 @@ local function renderPets(): boolean
 		-- coisa no painel que muda conforme onde o jogador está. É por isso que
 		-- ela vira o texto principal quando vale, em vez de virar mais uma linha.
 		local hasAffinityHere = hereOre ~= nil and definition.Affinity == hereOre
-		cell.Mark.Text = if hasAffinityHere then "⚡" else ""
+		cell.Bolt.Text = if hasAffinityHere then "⚡" else ""
 
 		if isEquipped then
 			cell.Status.Text = if hasAffinityHere then `EQUIPADO  ·  ⚡ 2.5x AQUI` else `EQUIPADO  x{held}`

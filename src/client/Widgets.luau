@@ -14,6 +14,7 @@
 local TweenService = game:GetService("TweenService")
 
 local Theme = require(script.Parent.Theme)
+local PetViewport = require(script.Parent.PetViewport)
 
 local Widgets = {}
 
@@ -378,6 +379,13 @@ function Widgets.petCell(parent: Instance, props)
 	local stroke = Theme.stroke(cell, Theme.Scale.Stroke)
 	Theme.pressJuice(cell)
 
+	-- O quadro 3D fica ONDE o círculo ficava, e maior.
+	--
+	-- O círculo continua existindo, atrás dele, e não é redundância: é o
+	-- fallback. Um pet cujo modelo não veio no pacote (ou um pacote que não
+	-- carregou) volta a ser o disco colorido de sempre em vez de virar um
+	-- buraco no card. Quem escolhe entre os dois é o chamador, olhando o retorno
+	-- de PetViewport.Show.
 	local swatch = Instance.new("Frame")
 	swatch.Name = "Swatch"
 	swatch.AnchorPoint = Vector2.new(0.5, 0)
@@ -390,6 +398,35 @@ function Widgets.petCell(parent: Instance, props)
 	Theme.corner(swatch, 22)
 	Theme.stroke(swatch, Theme.Scale.Stroke)
 	Theme.gloss(swatch, 0.4)
+
+	-- Maior que o disco (58 contra 44) porque agora ele é o protagonista do
+	-- card, e mais alto para o bicho ter para onde crescer sem encostar no nome.
+	local view = PetViewport.Create(
+		cell,
+		UDim2.fromOffset(58, 58),
+		UDim2.new(0.5, 0, 0, 4),
+		Vector2.new(0.5, 0)
+	)
+
+	-- O raio da afinidade saiu de DENTRO do disco.
+	--
+	-- Ele morava lá porque o disco era o único elemento gráfico do card. Agora
+	-- que o disco some quando há modelo, o raio sumiria junto — e a afinidade é
+	-- justamente a informação que não pode sumir.
+	--
+	-- Como badge no canto, ele também para de disputar espaço com a criatura:
+	-- o pedido era organizar a informação AO REDOR do viewport, não por cima.
+	local bolt = Widgets.label(cell, {
+		Name = "Bolt",
+		Text = "",
+		Size = UDim2.fromOffset(20, 20),
+		Position = UDim2.new(1, -4, 0, 4),
+		AnchorPoint = Vector2.new(1, 0),
+		XAlign = Enum.TextXAlignment.Center,
+		TextSize = 15,
+		Font = Theme.Font.Header,
+	})
+	bolt.ZIndex = cell.ZIndex + 3
 
 	local swatchMark = Widgets.label(swatch, {
 		Name = "Mark",
@@ -435,7 +472,7 @@ function Widgets.petCell(parent: Instance, props)
 	})
 	fuse.Visible = false
 
-	return { Root = cell, Swatch = swatch, Mark = swatchMark, Name = name, Status = status, Stroke = stroke, Fuse = fuse }
+	return { Root = cell, Swatch = swatch, View = view, Mark = swatchMark, Bolt = bolt, Name = name, Status = status, Stroke = stroke, Fuse = fuse }
 end
 
 return Widgets
