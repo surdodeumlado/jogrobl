@@ -23,6 +23,7 @@ local PlayerDataManager = require(script.Parent.PlayerDataManager)
 local PlayerStateService = require(script.Parent.PlayerStateService)
 local Notifier = require(script.Parent.Notifier)
 local WorldBuilder = require(script.Parent.WorldBuilder)
+local TravelService = require(script.Parent.TravelService)
 local Telemetry = require(script.Parent.Telemetry)
 local ZoneConfig = require(ReplicatedStorage.Shared.ZoneConfig)
 local ItemsConfig = require(ReplicatedStorage.Shared.ItemsConfig)
@@ -123,8 +124,16 @@ local function onPadTouched(zoneId: string, hit: BasePart)
 	-- the client being able to join at all.
 	WorldBuilder.EnsureZone(zoneId)
 
+	-- O cooldown é marcado ANTES da viagem, e isso importa porque MoveTo cede o
+	-- controle enquanto espera o streaming. Sem isto, o jogador parado em cima
+	-- do pad dispararia um segundo Touched dentro dessa janela e entraria numa
+	-- fila de teleportes para o mesmo lugar.
 	lastTeleportAt[player] = now
-	humanoidRootPart.CFrame = CFrame.new(destination)
+
+	-- Pede o streaming do destino antes de mover. Ver TravelService.MoveTo: com
+	-- as ilhas a 760 studs e o raio de streaming em 640, todo salto entre mundos
+	-- manda o jogador para uma região que o cliente dele ainda não tem.
+	TravelService.MoveTo(player, destination)
 
 	-- And the one after it, in the background, so the next door the player walks
 	-- through costs nothing.

@@ -31,6 +31,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local PlayerDataManager = require(script.Parent.PlayerDataManager)
 local PlayerStateService = require(script.Parent.PlayerStateService)
 local WorldBuilder = require(script.Parent.WorldBuilder)
+local TravelService = require(script.Parent.TravelService)
 local Notifier = require(script.Parent.Notifier)
 local WorldAudit = require(script.Parent.WorldAudit)
 local EconomyAudit = require(script.Parent.EconomyAudit)
@@ -204,7 +205,10 @@ local function goTo(player: Player, query: string): string
 		return `{zoneId} não tem destino`
 	end
 
-	rootPart.CFrame = CFrame.new(destination)
+	-- Pelo mesmo caminho que o pad, e nao escrevendo o CFrame direto: /ir e
+	-- justamente o comando que salta muitos mundos de uma vez, ou seja o pior
+	-- caso de destino nao carregado no cliente.
+	TravelService.MoveTo(player, destination)
 	return `{ZoneConfig.Zones[zoneId].DisplayName} ({zoneId})`
 end
 

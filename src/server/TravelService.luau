@@ -48,6 +48,59 @@ local function findNearestSellPad(position: Vector3): BasePart?
 	return closest
 end
 
+-- Move um personagem para um ponto que pode estar FORA da área carregada dele.
+--
+-- Com StreamingEnabled, o cliente só tem carregado o que está dentro de
+-- StreamingTargetRadius (640 studs neste jogo) do próprio personagem. Os mundos
+-- ficam a 760 studs um do outro, então todo salto entre mundos manda o jogador
+-- para um lugar que, no computador dele, ainda não existe.
+--
+-- O Roblox normalmente segura essa janela sozinho, mas "normalmente" não é uma
+-- garantia que valha para a ação mais frequente do jogo. Pedir o streaming
+-- antes fecha a janela de vez, e é a prática recomendada exatamente para isto.
+--
+-- TRÊS CUIDADOS, e cada um cobre uma forma real de isto dar errado:
+--
+--   1. pcall. RequestStreamAroundAsync pode errar (jogador saindo, assinatura
+--      diferente numa versão futura do motor). Um teleporte que falha porque a
+--      otimização falhou é pior que não ter a otimização.
+--
+--   2. Teto de tempo. O pedido ESPERA a região chegar; numa conexão ruim isso
+--      poderia durar segundos, e o jogador ficaria parado no pad achando que o
+--      portal quebrou. Um segundo é mais que suficiente para o caso normal, e
+--      passando disso a viagem acontece de qualquer jeito — sem streaming a
+--      chegada é feia, sem teleporte ela não acontece.
+--
+--   3. REVALIDAÇÃO depois do yield. Esta função cede o controle, e nesse
+--      intervalo o jogador pode ter saído, morrido ou respawnado. Escrever o
+--      CFrame de um personagem que não é mais o mesmo é como se teleporta um
+--      cadáver para o outro lado do mapa.
+function TravelService.MoveTo(player: Player, destination: Vector3): boolean
+	local character = player.Character
+	local rootPart = if character ~= nil then character:FindFirstChild("HumanoidRootPart") else nil
+	if rootPart == nil or not rootPart:IsA("BasePart") then
+		return false
+	end
+
+	pcall(function()
+		player:RequestStreamAroundAsync(destination, 1)
+	end)
+
+	-- O personagem de DEPOIS do yield, não o de antes.
+	local afterCharacter = player.Character
+	if afterCharacter == nil or afterCharacter ~= character then
+		return false
+	end
+
+	local afterRoot = afterCharacter:FindFirstChild("HumanoidRootPart")
+	if afterRoot == nil or not afterRoot:IsA("BasePart") then
+		return false
+	end
+
+	;(afterRoot :: BasePart).CFrame = CFrame.new(destination)
+	return true
+end
+
 function TravelService.ToSellPad(player: Player): boolean
 	local character = player.Character
 	local rootPart = if character ~= nil then character:FindFirstChild("HumanoidRootPart") else nil

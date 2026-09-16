@@ -17,6 +17,7 @@ local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Constants = require(ReplicatedStorage.Shared.Constants)
+local ZoneConfig = require(ReplicatedStorage.Shared.ZoneConfig)
 
 local WorldAudit = {}
 
@@ -392,6 +393,16 @@ end
 -- than anything measured here: a few thousand parts is comfortable, ten
 -- thousand is where low-end phones start to struggle, and that is exactly the
 -- audience this genre lives on.
+-- Teto de instâncias do SERVIDOR, não de renderização no cliente.
+--
+-- Era descrito como "alvo abaixo de 8.000 peças no Workspace" citando
+-- performance de celular, e essa leitura estava errada: com StreamingEnabled o
+-- cliente nunca vê o Workspace inteiro. O número continua útil — memória de
+-- servidor e tamanho da replicação inicial são reais — mas ele não é motivo
+-- para remover decoração de nenhum mundo.
+--
+-- Cresce com quantos mundos foram construídos na sessão, então passar dele
+-- depois de visitar dez mundos é esperado, não é regressão.
 local PART_BUDGET_WARN = 8000
 local PART_BUDGET_LOUD = 14000
 
@@ -514,7 +525,39 @@ local function census()
 		return byGroup[a] > byGroup[b]
 	end)
 
-	print(`[WorldAudit] {total} peças no Workspace:`)
+	--------------------------------------------------------------------
+	-- SERVIDOR, não cliente. A distinção é o conserto deste relatório.
+	--------------------------------------------------------------------
+	--
+	-- Este número sempre foi a contagem de instâncias do SERVIDOR, e o relatório
+	-- o comparava com um alvo de 8.000 pensado para o que um celular renderiza.
+	-- São grandezas diferentes, e a confusão custou caro: foi esse alerta que me
+	-- levou a concluir que o mundo estava pesado demais para telefone quando o
+	-- telefone nunca chegou perto de ver aquilo.
+	--
+	-- Com StreamingEnabled — que este jogo usa, com raio de 640 studs — o
+	-- cliente só recebe o que está perto do personagem dele. As ilhas ficam a
+	-- 760 studs uma da outra e têm 188 de raio, então de dentro de um mundo o
+	-- vizinho mais próximo entra só pela borda, e o resto da escada está a
+	-- milhares de studs — fora de alcance, não replicado, não renderizado.
+	--
+	-- O servidor, esse sim, guarda tudo sempre. É o número certo para vigiar
+	-- memória de servidor e tempo de replicação inicial, e o número errado para
+	-- decidir se um mundo tem decoração demais.
+	local built = 0
+	for zoneId, zone in ZoneConfig.Zones do
+		if not zone.Authored and Workspace:FindFirstChild("Zones") ~= nil then
+			-- Construída = tem pelo menos uma peça com o prefixo dela.
+			for _, child in (Workspace:FindFirstChild("Zones") :: Instance):GetChildren() do
+				if string.find(child.Name, zoneId .. "_", 1, true) == 1 then
+					built += 1
+					break
+				end
+			end
+		end
+	end
+
+	print(`[WorldAudit] INSTÂNCIAS NO SERVIDOR: {total}`)
 	for _, group in order do
 		print(string.format("    %-22s %6d", group, byGroup[group]))
 	end
@@ -522,15 +565,32 @@ local function census()
 		`    ({meshes} com malha, {lights} luzes, {emitters} emissores de partícula, {billboards} billboards)`
 	)
 
+	if built > 0 then
+		local zoneParts = byGroup["Zones"] or 0
+		print(`    {built} mundo(s) construído(s) — cerca de {math.floor(zoneParts / built)} peças por mundo`)
+		-- O cliente carrega o mundo onde está mais a parte do vizinho que cabe
+		-- no raio. Do centro, isso é pouco mais de uma ilha; parado no pad de
+		-- ida, pouco mais de uma e meia.
+		print(
+			`    CLIENTE: carrega ~1 a 1,6 mundo(s) por vez (streaming, raio 640) — na ordem de {math.floor(
+				zoneParts / built * 1.6
+			)} peças`
+		)
+	end
+
 	-- Lights and emitters are called out separately because they do not cost
 	-- like parts do: each dynamic light is a per-pixel cost under the Future
 	-- lighting this project uses, and a particle emitter is a draw call that
 	-- exists whether or not anyone is looking at it.
+	--
+	-- Os dois tetos abaixo continuam sendo de SERVIDOR, e ambos crescem com o
+	-- número de mundos construídos na sessão. Nenhum deles é motivo para tirar
+	-- detalhe visual de um mundo: o que o jogador renderiza é a fatia acima.
 	if lights > 60 then
-		warn(`[WorldAudit] {lights} luzes dinâmicas. Com Future lighting cada uma custa por pixel — vale conferir.`)
+		warn(`[WorldAudit] {lights} luzes dinâmicas no servidor (todas as ilhas somadas).`)
 	end
 	if emitters > 80 then
-		warn(`[WorldAudit] {emitters} emissores de partícula ativos ao mesmo tempo.`)
+		warn(`[WorldAudit] {emitters} emissores no servidor, somando {built} mundo(s).`)
 
 		-- A discriminação só é impressa quando o número passa do teto: abaixo
 		-- dele ela é ruído, e acima dela é a única coisa acionável no relatório.
@@ -571,7 +631,11 @@ local function census()
 	end
 
 	if total >= PART_BUDGET_LOUD then
-		warn(`[WorldAudit] {total} peças é muito para celular. Alvo abaixo de {PART_BUDGET_WARN}.`)
+		warn(
+			`[WorldAudit] {total} instâncias no SERVIDOR (acima de {PART_BUDGET_WARN}).`
+				.. ` Isto NÃO é o que um celular renderiza — ver a linha CLIENTE acima.`
+				.. ` Vigie por memória de servidor e replicação inicial, nunca cortando detalhe visual dos mundos.`
+		)
 	elseif total >= PART_BUDGET_WARN then
 		warn(`[WorldAudit] {total} peças — acima do alvo de {PART_BUDGET_WARN} para aparelhos fracos.`)
 	end
