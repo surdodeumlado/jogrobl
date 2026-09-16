@@ -1,0 +1,14 @@
+# LF everywhere, in the repository and in the working copy.
+#
+# Git on Windows defaults to core.autocrlf=true, which stores LF and checks out
+# CRLF. That is the right default for a mixed team and the wrong one here: the
+# files are edited by tooling that writes LF, so a checkout would flip every
+# line of every source file and the next write would flip them back — a diff of
+# the whole project with no change in it.
+* text=auto eol=lf
+
+# Built place files are binary; never try to diff or convert them.
+*.rbxlx binary
+*.rbxl binary
+*.rbxm binary
+*.rbxmx binary

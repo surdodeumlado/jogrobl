@@ -1,0 +1,8 @@
+[package]
+name = "jogrobl/jogrobl"
+version = "0.1.0"
+registry = "https://github.com/UpliftGames/wally-index"
+realm = "shared"
+
+[server-dependencies]
+ProfileService = "grilme99/profileservice@1.0.0"

@@ -1,0 +1,145 @@
+{
+  "name": "jogrobl",
+  "tree": {
+    "$className": "DataModel",
+
+    "ReplicatedStorage": {
+      "Shared": { "$path": "src/shared" },
+      "Remotes": {
+        "$className": "Folder",
+        "SellInventory": { "$className": "RemoteEvent" },
+        "Rebirth": { "$className": "RemoteEvent" },
+        "ProfileUpdated": { "$className": "RemoteEvent" },
+        "BuyUpgrade": { "$className": "RemoteEvent" },
+        "HatchEgg": { "$className": "RemoteEvent" },
+        "EggOpened": { "$className": "RemoteEvent" },
+        "ClaimQuest": { "$className": "RemoteEvent" },
+        "EquipPet": { "$className": "RemoteEvent" },
+        "UnequipPet": { "$className": "RemoteEvent" },
+        "ClaimDailyReward": { "$className": "RemoteEvent" },
+        "ClaimPlaytimeGift": { "$className": "RemoteEvent" },
+        "RedeemCode": { "$className": "RemoteEvent" },
+        "Notify": { "$className": "RemoteEvent" },
+        "RebirthEffect": { "$className": "RemoteEvent" },
+        "ResourceCollected": { "$className": "RemoteEvent" },
+        "FeatureUnlocked": { "$className": "RemoteEvent" },
+        "Swing": { "$className": "RemoteEvent" },
+        "NodeHit": { "$className": "RemoteEvent" },
+        "BossEvent": { "$className": "RemoteEvent" },
+        "OpenPanel": { "$className": "RemoteEvent" },
+        "AckWelcome": { "$className": "RemoteEvent" },
+        "ObjectiveCompleted": { "$className": "RemoteEvent" },
+        "FusePet": { "$className": "RemoteEvent" },
+        "PetFused": { "$className": "RemoteEvent" },
+        "TravelToRebirth": { "$className": "RemoteEvent" },
+        "TravelToSell": { "$className": "RemoteEvent" }
+      }
+    },
+
+    "ServerScriptService": {
+      "Server": { "$path": "src/server" },
+      "ServerPackages": { "$path": "ServerPackages" }
+    },
+
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+        "Client": { "$path": "src/client" }
+      }
+    },
+
+    "Workspace": {
+      "$properties": {
+        "FilteringEnabled": true,
+
+        "StreamingEnabled": true,
+        "StreamingTargetRadius": 640,
+        "StreamingMinRadius": 256
+      },
+
+      "SpawnLocation": {
+        "$className": "SpawnLocation",
+        "$properties": {
+          "Anchored": true, "CanCollide": false, "Neutral": true, "Transparency": 1,
+          "Material": "SmoothPlastic", "Color": [0.3372549, 0.6901961, 0.9411765],
+          "Position": [0, 2.2, 22], "Size": [12, 1, 12]
+        }
+      },
+
+      "ResourceNodes": { "$className": "Folder" },
+
+      "ZonePads": {
+        "$className": "Folder",
+        "HubToZone2": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true, "CanCollide": false, "Shape": "Cylinder", "Orientation": [0, 0, 90],
+            "Material": "Neon", "Transparency": 0.2, "Color": [0.1843137, 0.7411765, 0.3568628],
+            "Position": [39.6, 0.9, 39.6], "Size": [1, 14, 14]
+          },
+          "$attributes": { "ZoneId": "Zone2" }
+        }
+      },
+
+      "Leaderboards": {
+        "$className": "Folder",
+        "CashBoard": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true, "CanCollide": true, "Locked": true, "Orientation": [0, -45, 0], "Material": "SmoothPlastic",
+            "Color": [0.1176471, 0.1019608, 0.172549],
+            "Position": [44.6, 8.5, -26.2], "Size": [20, 15, 1]
+          },
+          "$attributes": { "BoardId": "Cash" }
+        },
+        "RebirthsBoard": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true, "CanCollide": true, "Locked": true, "Orientation": [0, -45, 0], "Material": "SmoothPlastic",
+            "Color": [0.1176471, 0.1019608, 0.172549],
+            "Position": [26.2, 8.5, -44.6], "Size": [20, 15, 1]
+          },
+          "$attributes": { "BoardId": "Rebirths" }
+        }
+      }
+    },
+
+    "Lighting": {
+      "$properties": {
+        "Ambient": [0.5019608, 0.5137255, 0.5647059],
+        "OutdoorAmbient": [0.6313726, 0.6470588, 0.6941177],
+        "Brightness": 2,
+        "ClockTime": 14,
+        "GeographicLatitude": 12,
+        "ExposureCompensation": 0.15,
+        "GlobalShadows": true,
+        "Outlines": false,
+        "Technology": "Future"
+      },
+      "Atmosphere": {
+        "$className": "Atmosphere",
+        "$properties": {
+          "Density": 0.22, "Offset": 0.1,
+          "Color": [0.7686275, 0.8313726, 0.9137255],
+          "Decay": [0.4392157, 0.5490196, 0.7215686],
+          "Glare": 0.2, "Haze": 0
+        }
+      },
+      "Bloom": {
+        "$className": "BloomEffect",
+        "$properties": { "Intensity": 0.2, "Size": 16, "Threshold": 2.2 }
+      },
+      "ColorCorrection": {
+        "$className": "ColorCorrectionEffect",
+        "$properties": { "Saturation": 0.06, "Contrast": 0.06, "Brightness": 0 }
+      },
+      "SunRays": {
+        "$className": "SunRaysEffect",
+        "$properties": { "Intensity": 0.08, "Spread": 0.9 }
+      }
+    },
+
+    "SoundService": {
+      "$properties": { "RespectFilteringEnabled": true }
+    }
+  }
+}
