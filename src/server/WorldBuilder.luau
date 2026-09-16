@@ -19,6 +19,7 @@
 
 local Workspace = game:GetService("Workspace")
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local ItemsConfig = require(ReplicatedStorage.Shared.ItemsConfig)
@@ -273,23 +274,30 @@ local function buildNodes(
 				end
 			end
 
-			local wanted = ItemsConfig[resourceId].Color
-			print(
-				string.format(
-					"[Ore] %-12s %-10s modelo=%-14s cor=%d,%d,%d (queria %d,%d,%d) facetas=%d tam=%.1f",
-					zoneId,
-					resourceId,
-					node.ClassName,
-					math.round(node.Color.R * 255),
-					math.round(node.Color.G * 255),
-					math.round(node.Color.B * 255),
-					math.round(wanted.R * 255),
-					math.round(wanted.G * 255),
-					math.round(wanted.B * 255),
-					facets,
-					node.Size.Magnitude
+			-- Diagnóstico de cor do minério: Studio apenas.
+			--
+			-- Uma linha por mundo construído é informação durante o
+			-- desenvolvimento e lixo na saída de um servidor publicado, onde
+			-- ninguém a lê.
+			if RunService:IsStudio() then
+				local wanted = ItemsConfig[resourceId].Color
+				print(
+					string.format(
+						"[Ore] %-12s %-10s modelo=%-14s cor=%d,%d,%d (queria %d,%d,%d) facetas=%d tam=%.1f",
+						zoneId,
+						resourceId,
+						node.ClassName,
+						math.round(node.Color.R * 255),
+						math.round(node.Color.G * 255),
+						math.round(node.Color.B * 255),
+						math.round(wanted.R * 255),
+						math.round(wanted.G * 255),
+						math.round(wanted.B * 255),
+						facets,
+						node.Size.Magnitude
+					)
 				)
-			)
+			end
 		end
 		node.Name = `{zoneId}_{resourceId}{index}`
 		node:SetAttribute("ResourceId", resourceId)

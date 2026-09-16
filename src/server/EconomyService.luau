@@ -4,6 +4,7 @@
 -- acting Player only — EconomyService never trusts a client-supplied amount.
 
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local PlayerDataManager = require(script.Parent.PlayerDataManager)
@@ -420,11 +421,19 @@ function EconomyService.Rebirth(player: Player): boolean
 	-- nothing until Play is stopped and started again. One line per rebirth is
 	-- cheap (it happens a handful of times an hour) and it turns that from a
 	-- guess into something the output settles.
-	print(
-		`[Rebirth] {player.Name} -> {profile.Data.Rebirths} renascimentos, `
-			.. `x{string.format("%.2f", profile.Data.CashMultiplier)} Cash. `
-			.. `Zerados: Cash, inventário, melhorias, picaretas, mundos.`
-	)
+	-- Só em Studio.
+	--
+	-- Uma linha por renascimento é barato durante o desenvolvimento e é ruído em
+	-- produção: num servidor movimentado são dezenas por hora, e cada uma leva o
+	-- NOME do jogador para a saída do servidor. Diagnóstico de desenvolvimento
+	-- não acompanha o jogo publicado.
+	if RunService:IsStudio() then
+		print(
+			`[Rebirth] {player.Name} -> {profile.Data.Rebirths} renascimentos, `
+				.. `x{string.format("%.2f", profile.Data.CashMultiplier)} Cash. `
+				.. `Zerados: Cash, inventário, melhorias, picaretas, mundos.`
+		)
+	end
 
 	PlayerStateService.Refresh(player)
 	QuestService.RecordProgress(player, "Rebirth", 1)

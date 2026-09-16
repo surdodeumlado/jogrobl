@@ -50,7 +50,24 @@ local function evaluate(player: Player): boolean
 	return true
 end
 
+-- Ultima vez que cada jogador confirmou a tela de boas-vindas.
+local lastAckAt: { [Player]: number } = {}
+
 local function onAckWelcome(player: Player)
+	-- Este remote é o único que não passa por RemoteHandlers, e portanto o único
+	-- fora do teto global de 20 chamadas por segundo por jogador.
+	--
+	-- O dano possível é pequeno — a ação é idempotente e a segunda chamada já
+	-- sai no `SeenWelcome` abaixo — mas "pequeno" não é o mesmo que "limitado":
+	-- sem teto, um cliente modificado pode disparar isto milhares de vezes por
+	-- segundo e cada uma custa uma busca de perfil. Um debounce de meio segundo
+	-- fecha isso sem tocar em nada mais.
+	local now = os.clock()
+	if now - (lastAckAt[player] or 0) < 0.5 then
+		return
+	end
+	lastAckAt[player] = now
+
 	local profile = PlayerDataManager.GetProfile(player)
 	if profile == nil or profile.Data.SeenWelcome then
 		return
@@ -62,6 +79,10 @@ end
 
 function ObjectiveService.Start()
 	ackWelcomeRemote.OnServerEvent:Connect(onAckWelcome)
+
+	Players.PlayerRemoving:Connect(function(player)
+		lastAckAt[player] = nil
+	end)
 
 	task.spawn(function()
 		while true do
