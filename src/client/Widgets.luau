@@ -77,8 +77,16 @@ function Widgets.button(parent: Instance, props): TextButton
 	if not props.NoPadding then
 		Theme.padding(button, 2, 8, 2, 8)
 	end
-	Theme.corner(button, props.Radius or 10)
-	Theme.stroke(button, props.StrokeThickness or 3)
+	-- Os padrões vêm da escala, e esta é a linha que mais muda a aparência do
+	-- jogo inteiro.
+	--
+	-- Todo botão da interface passa por aqui, e o padrão era raio 10 com contorno
+	-- de 3px. Três pixels de linha preta em volta de cada botão, em painéis que
+	-- listam oito ou dez linhas, é o que produzia a sensação de "tudo tem borda"
+	-- — e como é um padrão, ela aparecia igual em Pets, Loja, Missões e
+	-- Recompensas sem ninguém ter decidido isso em lugar nenhum.
+	Theme.corner(button, props.Radius or Theme.Scale.Radius)
+	Theme.stroke(button, props.StrokeThickness or Theme.Scale.Stroke)
 	Theme.gloss(button)
 	Theme.pressJuice(button)
 
@@ -193,7 +201,7 @@ function Widgets.progressBar(parent: Instance, props)
 	-- rebirth getting closer — and in this genre the bar IS the reward: it has
 	-- to look like a filling tube of colour, not a loading indicator.
 	Theme.corner(track, 999)
-	Theme.stroke(track, 3)
+	Theme.stroke(track, Theme.Scale.Stroke)
 
 	local fill = Instance.new("Frame")
 	fill.Name = "Fill"
@@ -263,8 +271,8 @@ function Widgets.row(parent: Instance, props)
 	root.BorderSizePixel = 0
 	root.Parent = parent
 
-	Theme.corner(root, 12)
-	Theme.stroke(root, 2)
+	Theme.corner(root, Theme.Scale.Radius)
+	Theme.stroke(root, Theme.Scale.Stroke)
 
 	local actionWidth = props.ActionWidth or 104
 
@@ -366,8 +374,8 @@ function Widgets.petCell(parent: Instance, props)
 	cell.Text = ""
 	cell.Parent = parent
 
-	Theme.corner(cell, 12)
-	local stroke = Theme.stroke(cell, 3)
+	Theme.corner(cell, Theme.Scale.Radius)
+	local stroke = Theme.stroke(cell, Theme.Scale.Stroke)
 	Theme.pressJuice(cell)
 
 	local swatch = Instance.new("Frame")
@@ -380,7 +388,7 @@ function Widgets.petCell(parent: Instance, props)
 	swatch.Parent = cell
 
 	Theme.corner(swatch, 22)
-	Theme.stroke(swatch, 2)
+	Theme.stroke(swatch, Theme.Scale.Stroke)
 	Theme.gloss(swatch, 0.4)
 
 	local swatchMark = Widgets.label(swatch, {

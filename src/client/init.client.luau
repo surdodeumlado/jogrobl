@@ -157,7 +157,9 @@ local function formatInventory(inventory: { [string]: number }): string
 	for _, resourceId in orderedResourceIds do
 		local count = inventory[resourceId] or 0
 		if count > 0 then
-			table.insert(parts, `{ItemsConfig[resourceId].DisplayName} {count}`)
+			-- Abreviado como todo número da interface. A mochila passa de mil com
+			-- as melhorias, e a linha lista vários minérios ao mesmo tempo.
+			table.insert(parts, `{ItemsConfig[resourceId].DisplayName} {Format.Abbreviate(count)}`)
 		end
 	end
 
@@ -405,8 +407,15 @@ local function renderStats()
 	local combat = snapshot.Combat
 	if combat ~= nil then
 		Mining.SetSwingInterval(combat.SwingInterval)
+		-- O DANO ABREVIADO. Ele estava cru, e cru significa oito dígitos.
+		--
+		-- Dano = (1 + melhorias) x multiplicador da picareta. No fim da escada
+		-- isso passa de dez milhões, então esta linha imprimia "⛏️ 10234567" e
+		-- empurrava o resto do texto para fora do rótulo. É o mesmo defeito do
+		-- Cash, no mesmo lugar da tela, e tinha escapado porque só aparece depois
+		-- de muitas horas de jogo.
 		hud.InventoryLabel.Text =
-			`⛏️ {math.floor(combat.Damage)}   ·   💥 {math.floor((combat.CritChance or 0) * 100)}%   ·   {formatInventory(
+			`⛏️ {Format.Abbreviate(combat.Damage)}   ·   💥 {math.floor((combat.CritChance or 0) * 100)}%   ·   {formatInventory(
 				snapshot.Inventory
 			)}`
 

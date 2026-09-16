@@ -170,8 +170,8 @@ function UI.Create()
 	goalCard.Visible = false
 	goalCard.Parent = screenGui
 
-	Theme.corner(goalCard, 12)
-	Theme.stroke(goalCard, 2)
+	Theme.corner(goalCard, Theme.Scale.Radius)
+	Theme.stroke(goalCard, Theme.Scale.Stroke)
 	Theme.surface(goalCard)
 
 	Widgets.label(goalCard, {
@@ -375,8 +375,8 @@ function UI.Create()
 		sizeConstraint.MaxSize = Vector2.new(560, 470)
 		sizeConstraint.Parent = root
 
-		Theme.corner(root, 18)
-		Theme.stroke(root, 3)
+		Theme.corner(root, Theme.Scale.RadiusLarge)
+		Theme.stroke(root, Theme.Scale.Stroke)
 		Theme.surface(root)
 
 		local header = Instance.new("Frame")
@@ -387,7 +387,7 @@ function UI.Create()
 		header.ZIndex = 7
 		header.Parent = root
 
-		Theme.corner(header, 18)
+		Theme.corner(header, Theme.Scale.RadiusLarge)
 		Theme.gloss(header, 0.25)
 
 		-- UICorner rounds all four corners; this square-bottomed cover makes
@@ -407,7 +407,7 @@ function UI.Create()
 			Text = definition.Title,
 			Size = UDim2.new(1, -104, 1, 0),
 			Position = UDim2.new(0, 18, 0, 0),
-			TextSize = 21,
+			TextSize = Theme.Scale.TextHeader,
 			Font = Theme.Font.Header,
 		})
 		title.ZIndex = 8
@@ -548,8 +548,8 @@ function UI.Create()
 		badge.ZIndex = 3
 		badge.Parent = railButton
 
-		Theme.corner(badge, 7)
-		Theme.stroke(badge, 2)
+		Theme.corner(badge, Theme.Scale.RadiusSmall)
+		Theme.stroke(badge, Theme.Scale.Stroke)
 
 		hud.RailButtons[definition.Id] = railButton
 		hud.Panels[definition.Id].Badge = badge
@@ -624,8 +624,8 @@ function UI.Create()
 		-- toy from a metre away on a phone. The genre's whole look is thick
 		-- near-black outlines and generous radii; the action bar was the one
 		-- place still wearing the thin, app-like version of it.
-		Theme.corner(frame, 18)
-		Theme.stroke(frame, 4)
+		Theme.corner(frame, Theme.Scale.RadiusLarge)
+		Theme.stroke(frame, Theme.Scale.Stroke)
 		Theme.surface(frame)
 		Theme.padding(frame, CARD_PADDING / 2, 12, CARD_PADDING / 2, 10)
 
@@ -1080,8 +1080,8 @@ function UI.Create()
 		cell.ZIndex = 6
 		cell.Parent = dailyHolder
 
-		Theme.corner(cell, 10)
-		local cellStroke = Theme.stroke(cell, 2)
+		Theme.corner(cell, Theme.Scale.RadiusSmall)
+		local cellStroke = Theme.stroke(cell, Theme.Scale.Stroke)
 
 		Widgets.label(cell, {
 			Name = "Day",
@@ -1153,8 +1153,8 @@ function UI.Create()
 	hud.CodeBox.ZIndex = 6
 	hud.CodeBox.Parent = codeRow
 
-	Theme.corner(hud.CodeBox, 10)
-	Theme.stroke(hud.CodeBox, 2)
+	Theme.corner(hud.CodeBox, Theme.Scale.RadiusSmall)
+	Theme.stroke(hud.CodeBox, Theme.Scale.Stroke)
 	Theme.padding(hud.CodeBox, 0, 10, 0, 10)
 
 	hud.CodeButton = Widgets.button(codeRow, {
@@ -1262,8 +1262,8 @@ function UI.Create()
 		toast.ZIndex = 20
 		toast.Parent = toastHolder
 
-		Theme.corner(toast, 12)
-		local stroke = Theme.stroke(toast, 3)
+		Theme.corner(toast, Theme.Scale.Radius)
+		local stroke = Theme.stroke(toast, Theme.Scale.Stroke)
 		stroke.Transparency = 1
 
 		local label = Widgets.label(toast, {
@@ -1351,7 +1351,7 @@ function UI.Create()
 	revealCard.ZIndex = 25
 	revealCard.Parent = screenGui
 
-	Theme.corner(revealCard, 18)
+	Theme.corner(revealCard, Theme.Scale.RadiusLarge)
 	local revealStroke = Theme.stroke(revealCard, 4)
 	revealStroke.Transparency = 1
 
@@ -1379,8 +1379,8 @@ function UI.Create()
 	revealViewport.ZIndex = 26
 	revealViewport.Parent = revealCard
 
-	Theme.corner(revealViewport, 14)
-	Theme.stroke(revealViewport, 3)
+	Theme.corner(revealViewport, Theme.Scale.Radius)
+	Theme.stroke(revealViewport, Theme.Scale.Stroke)
 
 	-- Lit from the front so a dark pet is not a silhouette in a dark box.
 	revealViewport.LightDirection = Vector3.new(-0.4, -0.7, -0.6)
@@ -1474,7 +1474,7 @@ function UI.Create()
 	welcomeConstraint.MaxSize = Vector2.new(520, 300)
 	welcomeConstraint.Parent = welcomeCard
 
-	Theme.corner(welcomeCard, 20)
+	Theme.corner(welcomeCard, Theme.Scale.RadiusLarge)
 	Theme.stroke(welcomeCard, 4, Theme.Colors.Ready)
 	Theme.surface(welcomeCard)
 	Theme.padding(welcomeCard, 16, 16, 16, 16)
@@ -1558,7 +1558,7 @@ function UI.Create()
 		card.ZIndex = 42
 		card.Parent = steps
 
-		Theme.corner(card, 14)
+		Theme.corner(card, Theme.Scale.Radius)
 		Theme.stroke(card, 3, step.Color)
 
 		local icon = Widgets.label(card, {
