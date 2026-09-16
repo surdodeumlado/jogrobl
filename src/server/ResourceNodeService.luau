@@ -43,6 +43,9 @@ local nodeHealth: { [BasePart]: number } = {}
 -- server boss is a node whose health deliberately overrides its resource's.
 local nodeMaxHealth: { [BasePart]: number } = {}
 local lastSwingAt: { [Player]: number } = {}
+-- Quem bateu em cada pedra e quanto, para o rateio da quebra. Ver
+-- recordContribution/splitDrops mais abaixo.
+local contributions: { [BasePart]: { [Player]: number } } = {}
 
 -- A player holding the mouse with a full bag generates a swing request every
 -- frame; without a floor they would get a toast every frame too.
@@ -179,6 +182,11 @@ local function setRich(node: BasePart, rich: boolean)
 end
 
 local function showNode(node: BasePart)
+	-- Defensivo: uma pedra que voltou nao pode carregar contribuicao da vida
+	-- anterior dela. O caminho normal ja apaga na quebra; isto cobre o caso de
+	-- ela ter sido escondida por outro motivo.
+	contributions[node] = nil
+
 	local resourceId = nodeResource[node]
 	if resourceId == nil then
 		-- Removed from the folder while it was respawning: it must not return.
@@ -208,6 +216,140 @@ function ResourceNodeService.IsAlive(node: BasePart): boolean
 	return (nodeHealth[node] or 0) > 0
 end
 
+--------------------------------------------------------------------------
+-- Quem bateu em quê, e quanto
+--------------------------------------------------------------------------
+--
+-- Escrito aqui e não reaproveitado do BossService, e vale dizer por quê, já que
+-- a primeira ideia foi reusar: o ledger de lá filtra pelo nó do chefe
+-- (`if activeBoss ~= node then return end`), então ele não vê minério nenhum. E
+-- o rateio dele soma `math.max(share, MinimumShare)`, o que pode distribuir
+-- MAIS que o prêmio quando há muita gente — exatamente a inflação que este
+-- pedido proíbe. Reaproveitar aquilo seria trazer um defeito junto.
+--
+-- Vida curta: uma entrada existe da primeira pancada até a pedra quebrar, e é
+-- apagada na quebra e no respawn. Não é estado que acumule.
+-- (a tabela é declarada junto dos outros mapas de nó, no topo do arquivo, para
+-- ficar acima de showNode, que a limpa.)
+
+local function recordContribution(player: Player, node: BasePart, damage: number)
+	if damage <= 0 then
+		return
+	end
+
+	local ledger = contributions[node]
+	if ledger == nil then
+		ledger = {}
+		contributions[node] = ledger
+	end
+	ledger[player] = (ledger[player] or 0) + damage
+end
+
+-- Reparte `drops` unidades inteiras entre os contribuidores, somando EXATAMENTE
+-- `drops`.
+--
+-- O método é o do maior resto (Hamilton), e ele não é preciosismo: os primeiros
+-- mundos deixam cair UMA unidade por pedra. Arredondar cada parte para baixo
+-- daria zero para todo mundo e a pedra não pagaria nada; arredondar para cima
+-- daria uma unidade para cada um e a pedra pagaria o dobro. Só distribuindo os
+-- restos é que o total fecha nos dois extremos.
+--
+-- Com uma unidade e 90/10, ela vai inteira para quem bateu 90 — que continua
+-- sendo "um leva a pedra", só que agora por CONTRIBUIÇÃO e não por quem teve a
+-- sorte de dar o último golpe. Nos mundos adiantados, onde caem de três a nove
+-- unidades, a divisão vira proporcional de verdade.
+--
+-- Determinístico em todo empate: ordena por dano (maior primeiro) e desempata
+-- por UserId. Dois servidores com o mesmo estado repartem igual.
+local function splitDrops(node: BasePart, drops: number): { [Player]: number }
+	local ledger = contributions[node]
+	if ledger == nil then
+		return {}
+	end
+
+	-- Só quem ainda está no servidor com perfil carregado.
+	--
+	-- Quem saiu no meio da pedra não leva nada — não teria para onde levar — e
+	-- a parte dele NÃO SOME: o total é recalculado sobre quem ficou, então a
+	-- pedra continua pagando tudo o que vale. Valor não pode evaporar nem se
+	-- duplicar por causa de alguém fechar o jogo.
+	local entries: { { Player: Player, Damage: number } } = {}
+	local total = 0
+
+	for player, damage in ledger do
+		if damage > 0 and player.Parent ~= nil and PlayerDataManager.GetProfile(player) ~= nil then
+			table.insert(entries, { Player = player, Damage = damage })
+			total += damage
+		end
+	end
+
+	if #entries == 0 or total <= 0 or drops <= 0 then
+		return {}
+	end
+
+	table.sort(entries, function(a, b)
+		if a.Damage ~= b.Damage then
+			return a.Damage > b.Damage
+		end
+		return a.Player.UserId < b.Player.UserId
+	end)
+
+	local whole = math.floor(drops)
+	local result: { [Player]: number } = {}
+	local handed = 0
+
+	-- Primeira passada: a parte inteira de cada um.
+	local remainders: { { Player: Player, Fraction: number, Damage: number } } = {}
+	for _, entry in entries do
+		local exact = entry.Damage / total * whole
+		local base = math.floor(exact)
+		result[entry.Player] = base
+		handed += base
+		table.insert(remainders, { Player = entry.Player, Fraction = exact - base, Damage = entry.Damage })
+	end
+
+	-- Segunda passada: as unidades que sobraram vão para os maiores restos.
+	--
+	-- O desempate é repetido aqui de propósito. A tentação é dizer "entries já
+	-- veio ordenado, o sort herda a ordem" — e isso é falso: table.sort em Luau
+	-- NÃO é estável, então com dois restos iguais (dois jogadores com 50% cada e
+	-- uma unidade para dar) a ordem entre eles fica indefinida e o mesmo empate
+	-- poderia pagar pessoas diferentes em servidores diferentes.
+	--
+	-- Com dano e UserId no comparador a ordem é total, e aí sim é determinística.
+	table.sort(remainders, function(a, b)
+		if a.Fraction ~= b.Fraction then
+			return a.Fraction > b.Fraction
+		end
+		if a.Damage ~= b.Damage then
+			return a.Damage > b.Damage
+		end
+		return a.Player.UserId < b.Player.UserId
+	end)
+
+	local leftover = whole - handed
+	local index = 1
+	while leftover > 0 and #remainders > 0 do
+		local target = remainders[index]
+		result[target.Player] += 1
+		leftover -= 1
+		index += 1
+		if index > #remainders then
+			index = 1
+		end
+	end
+
+	-- Ninguém recebe zero na tabela devolvida: o chamador itera isto para pagar
+	-- e para mostrar o popup, e um "+0" flutuando é pior que silêncio.
+	for player, amount in result do
+		if amount <= 0 then
+			result[player] = nil
+		end
+	end
+
+	return result
+end
+
 -- Applies damage from `player`. Returns true only if this hit broke the node,
 -- so the caller can tell "hit" from "kill".
 --
@@ -228,8 +370,14 @@ function ResourceNodeService.DealDamage(player: Player, node: BasePart, damage: 
 	-- Damage never overkills the ledger: the boss payout splits by damage
 	-- dealt, so a huge last hit must only be credited for the health that was
 	-- actually left.
+	--
+	-- Essa mesma limitação agora protege o rateio de TODO minério: sem ela, um
+	-- golpe de mil numa pedra com dez de vida sobrante entraria como mil no
+	-- ledger e afogaria a contribuição real de quem passou a pedra inteira
+	-- batendo.
 	local applied = math.min(damage, health)
 	BossService.RecordDamage(player, node, applied)
+	recordContribution(player, node, applied)
 
 	local remaining = health - applied
 	if remaining > 0 then
@@ -254,14 +402,31 @@ function ResourceNodeService.DealDamage(player: Player, node: BasePart, damage: 
 		drops *= Constants.RICH_DROP_MULTIPLIER
 	end
 
-	-- Stored can be less than the drop if the bag filled up on this very
-	-- break. The popup shows what was actually banked, never what was owed —
-	-- a "+4" over a bag that only took 1 is a lie the player will notice when
-	-- they sell.
-	local stored = EconomyService.GrantResource(player, resourceId, drops)
-	if stored > 0 then
-		EffectsService.NotifyBreak(player, node.Position, stored, resourceId, wasRich)
+	-- A pedra paga QUEM BATEU NELA, na proporção do que cada um bateu.
+	--
+	-- Antes ela pagava quem desse o golpe final, e o efeito prático num servidor
+	-- cheio era pior do que parece: duas pessoas na mesma pedra, uma leva tudo e
+	-- a outra jogou fora todo o esforço. Não é uma disputa — é trabalho apagado,
+	-- e a pessoa que perdeu não tem como saber que perdeu.
+	--
+	-- O TOTAL NÃO MUDA. Isto é uma divisão do que a pedra sempre valeu, nunca
+	-- uma cópia dela: a soma do que sai daqui é exatamente `drops`, o mesmo
+	-- número que ia inteiro para um só. Minerar sozinho rende igual ao que
+	-- rendia; o que muda é só quem recebe quando há mais de um.
+	local shares = splitDrops(node, drops)
+
+	for receiver, amount in shares do
+		-- Stored can be less than the drop if the bag filled up on this very
+		-- break. The popup shows what was actually banked, never what was owed —
+		-- a "+4" over a bag that only took 1 is a lie the player will notice when
+		-- they sell.
+		local stored = EconomyService.GrantResource(receiver, resourceId, amount)
+		if stored > 0 then
+			EffectsService.NotifyBreak(receiver, node.Position, stored, resourceId, wasRich)
+		end
 	end
+
+	contributions[node] = nil
 
 	task.delay(definition.RespawnSeconds, showNode, node)
 	return true
@@ -396,6 +561,12 @@ function ResourceNodeService.Start()
 
 	Players.PlayerRemoving:Connect(function(player)
 		lastSwingAt[player] = nil
+		-- Tira quem saiu de todo ledger aberto. O rateio ja ignora ausentes, mas
+		-- isso solta a referencia ao Player em vez de deixa-la presa ate a pedra
+		-- quebrar.
+		for _, ledger in contributions do
+			ledger[player] = nil
+		end
 		lastFullWarningAt[player] = nil
 	end)
 end
