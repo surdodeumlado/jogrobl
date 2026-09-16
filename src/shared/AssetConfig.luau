@@ -161,6 +161,32 @@ AssetConfig.Packages = {
 
 	-- Moss and hanging growth, for the damp worlds.
 	Moss = 9002291527,
+
+	----------------------------------------------------------------------
+	-- Kit de deserto
+	----------------------------------------------------------------------
+	--
+	-- Quatro peças que só fazem sentido juntas, e é por isso que estão
+	-- agrupadas: cacto, caminho de pedra, duna e tronco caído são o vocabulário
+	-- de "lugar seco e abandonado". Usadas nos mundos de rim "dunes" e na
+	-- Necrópole, que é deserto com outra coisa em cima.
+	Cactus = 4896954650,
+	StonePath = 4893313961,
+	SandDune = 4896956679,
+	FallenLog = 9731248486,
+
+	-- Planetas, EXCLUSIVOS do Limiar do Vazio (mundo 24).
+	--
+	-- A exclusividade é uma regra de produto, não uma preferência: o momento de
+	-- atravessar aquele portal só funciona se for a primeira vez que o jogador
+	-- vê céu com planetas. Um planeta no horizonte do saguão gastaria isso de
+	-- graça, no minuto zero, para quem ainda não tem motivo nenhum de estar
+	-- impressionado.
+	--
+	-- Garantida por construção e não por filtro: WorldBuilder só pede este
+	-- pacote dentro da rotina do mundo 24, então nenhum outro mundo tem como
+	-- receber um planeta mesmo se alguém errar uma condição depois.
+	Planets = 13076858989,
 }
 
 -- Loose rock models, pooled as one list.
@@ -364,6 +390,19 @@ AssetConfig.OreModels = {
 	Obsidian = 12,
 	Diamond = 9,
 	Magmite = 6,
+	-- Magnetita, escolhida a mão para separar as Minas Magnéticas (mundo 20) da
+	-- Caverna de Obsidiana (mundo 3).
+	--
+	-- Os dois são minas escuras de cristal, e sem isto os dois também usavam o
+	-- MESMO minério: sem entrada aqui, a atribuição cai no ciclo por ordem de
+	-- exibição, e a ordem 19 caía justamente no cristal 7. Duas cavernas roxas
+	-- com a mesma pedra dentro é a definição de reskin.
+	--
+	-- O 9 são quinze colunas de MeshPart — a silhueta mais agitada do conjunto,
+	-- que lida como um feixe de agulhas magnéticas em vez de uma pedra. O 12 do
+	-- mundo 3 são dois blocos lisos. Agora as duas minas têm pedras de formatos
+	-- opostos, e a diferença aparece antes da cor.
+	Magnetite = 9,
 }
 
 -- The rotation the rest of the worlds draw from. Only the shapes that hold up:

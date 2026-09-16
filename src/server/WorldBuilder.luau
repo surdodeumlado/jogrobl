@@ -3116,13 +3116,24 @@ end
 -- Three emitters, not four like the weather: these are at ground level, so they
 -- only have to cover where feet go — the town, the quarry road and the middle
 -- distance — rather than the whole island.
+-- Mundos cuja névoa de chão NÃO deve seguir o clima do céu.
+--
+-- Só existe uma entrada e ela é o Limiar do Vazio. O clima dele é "embers", que
+-- é a escolha certa para o céu — mas a névoa de chão derivada de embers é
+-- laranja-quente, e o mundo é um vazio roxo. Derivar sempre do clima é o padrão
+-- correto em 24 dos 25 casos; forçar a exceção num mapa de uma linha é mais
+-- honesto que inventar um eixo novo no catálogo para um mundo só.
+local HAZE_OVERRIDE: { [string]: string } = {
+	Zone24 = "void",
+}
+
 local function buildGroundHaze(zoneId: string, definition: ZoneConfig.ZoneDefinition, theme, parent: Instance)
 	local colour = theme.ShardColor
 	local rate, speed, lifetime, size, transparency, spread = 8, 2.2, 6, 1.4, 0.75, 45
 	local acceleration = Vector3.new(0.5, 1.2, -0.5)
 	local light = 0.3
 
-	local kind = theme.Weather
+	local kind = HAZE_OVERRIDE[zoneId] or theme.Weather
 	if kind == "none" then
 		-- The quiet worlds still get something; what, depends on what they are.
 		kind = if theme.Rim == "open" then "mist" elseif theme.GrassTufts > 0 then "pollen" else "shimmer"
@@ -3170,6 +3181,17 @@ local function buildGroundHaze(zoneId: string, definition: ZoneConfig.ZoneDefini
 		colour = theme.ShardColor:Lerp(Color3.fromRGB(255, 250, 210), 0.5)
 		rate, speed, lifetime, size, transparency, light = 9, 0.9, 14, 0.9, 0.5, 0.6
 		acceleration = Vector3.new(0.8, 0.35, 0.6)
+	elseif kind == "void" then
+		-- Energia subindo do chão num lugar onde não deveria haver chão.
+		--
+		-- Sobe reto e devagar, brilha forte e vive muito: a leitura é de algo
+		-- VAZANDO do mundo, não de poeira sendo carregada pelo vento. É o único
+		-- caso aqui com LightEmission no máximo, porque num mapa de ambiente 74
+		-- a partícula é praticamente a única fonte de luz que o jogador vê.
+		colour = theme.ShardColor:Lerp(Color3.fromRGB(196, 150, 255), 0.4)
+		rate, speed, lifetime, size, transparency, light = 11, 1.8, 15, 1.1, 0.35, 1
+		spread = 18
+		acceleration = Vector3.new(0, 1.1, 0)
 	elseif kind == "shimmer" then
 		-- The built, still worlds: prism, mirrors, the void. Light rising off a
 		-- polished floor with no wind to move it.
@@ -3351,6 +3373,458 @@ local function buildZoneSignature(
 	end
 end
 
+--------------------------------------------------------------------------
+-- Identidade por mundo
+--------------------------------------------------------------------------
+--
+-- Uma TABELA, e não vinte e quatro funções.
+--
+-- O que este bloco resolve é concreto: a auditoria mostrou que rim, flora e
+-- weather têm 8, 9 e 8 valores para 24 mundos, então cada combinação se repete
+-- e dois pares eram idênticos ponto a ponto (4≡16 e 14≡19). Os eixos genéricos
+-- acabaram. O que falta não é mais um eixo — é o punhado de coisas que só
+-- pertencem a UM lugar.
+--
+-- Declarativo de propósito. Cada mundo lista o que recebe; a rotina abaixo sabe
+-- construir cada tipo. Acrescentar identidade a um mundo novo é uma linha aqui,
+-- e nenhum mundo pode receber por engano o que pertence a outro — que é a
+-- garantia que os planetas precisam.
+type Decor = {
+	-- Kit de deserto: cacto, caminho de pedra, duna, tronco caído.
+	Desert: number?, -- densidade, 0 a 1
+	-- Pedras soltas a mais, na cor do mundo.
+	Boulders: number?,
+	-- Tufos de vegetação rasteira na cor da GRAMA do mundo (neve, vidro, osso).
+	Scrub: number?,
+	-- Lascas verticais altas e translúcidas.
+	Shards: number?,
+	-- Poça d'água rasa fora da praça.
+	Pond: boolean?,
+	-- Planetas ao longe. Só o mundo 24.
+	Planets: boolean?,
+	-- Bola seca rolando. Só o mundo 21.
+	Tumbleweed: number?,
+	-- Colunas de energia entre chão e céu. Minas magnéticas.
+	Pylons: number?,
+}
+
+local WORLD_DECOR: { [string]: Decor } = {
+	-- 15 Planalto do Trovão — rocha erodida e uma poça que reflete o céu de
+	-- tempestade. O mínimo para deixar de ser "ilha com outra paleta".
+	Zone15 = { Boulders = 16, Pond = true, Scrub = 20 },
+
+	-- 16 Tundra da Aurora — o conceito estava certo e o mapa estava vazio.
+	-- Mato baixo na cor da neve (que é o que "grama coberta de neve" é) e
+	-- pedra aflorando, sem virar floresta.
+	Zone16 = { Boulders = 22, Scrub = 90 },
+
+	-- 17 Necrópole — deserto POR CIMA dos ossos, nunca no lugar deles. As
+	-- costelas continuam sendo a silhueta do mundo; o kit de deserto entra em
+	-- densidade baixa para dizer "abandonado" sem competir.
+	Zone17 = { Desert = 0.45, Boulders = 10, Scrub = 24 },
+
+	-- 19 Salão dos Espelhos — chão claro que não conversava com nada. Lascas
+	-- altas e translúcidas dão verticalidade e reflexo, que é o tema.
+	Zone19 = { Shards = 26, Boulders = 8 },
+
+	-- 20 Minas Magnéticas — o que separa esta mina da do mundo 3. Colunas de
+	-- energia ligando chão e teto: nada na Obsidiana é vertical e contínuo.
+	Zone20 = { Pylons = 9, Boulders = 14, Shards = 12 },
+
+	-- 21 Deserto de Vidro — o mundo que mais precisava. Kit de deserto cheio.
+	Zone21 = { Desert = 1, Boulders = 12, Tumbleweed = 3, Scrub = 16 },
+
+	-- 24 Limiar do Vazio — planetas, e só aqui.
+	Zone24 = { Planets = true, Shards = 14 },
+
+	-- Os outros dois mundos de duna ganham o kit em densidade média: eles não
+	-- estavam na lista de problemas, mas um cacto num deserto é coerência, não
+	-- conteúdo novo.
+	Zone6 = { Desert = 0.6 },
+	Zone12 = { Desert = 0.25 },
+}
+
+-- Espalha um pacote da loja pelo chão, com a variação vindo de escala e giro.
+--
+-- Um helper e não quatro laços copiados: a diferença entre cacto, tronco e
+-- caminho de pedra é o pacote, o tamanho e quantos — não a lógica.
+local function scatterPack(
+	zoneId: string,
+	definition: ZoneConfig.ZoneDefinition,
+	keepouts: { Keepout },
+	parent: Instance,
+	packageName: string,
+	count: number,
+	minSize: number,
+	maxSize: number,
+	clearance: number,
+	tint: (Color3 | false)?
+)
+	local models = propsNamed(`pack_{packageName}`, { packageName }, "", false, 12)
+	if #models == 0 then
+		return
+	end
+
+	for _ = 1, count do
+		local spot: Vector3? = nil
+		for _ = 1, 24 do
+			local candidate = randomFloorSpot(definition, definition.Radius - SCENERY_MARGIN)
+			if isClearOf(keepouts, candidate, clearance) then
+				spot = candidate
+				break
+			end
+		end
+		if spot == nil then
+			continue
+		end
+
+		local prop = standProp(
+			anyProp(models) :: Instance,
+			spot,
+			rng:NextNumber(minSize, maxSize),
+			parent,
+			`{zoneId}_{packageName}`
+		)
+		if prop ~= nil then
+			-- `false` significa MANTER a cor original do asset. A duna é o caso:
+			-- ela já é areia, e repintá-la na paleta do mundo só a apagaria.
+			if typeof(tint) == "Color3" then
+				tintTo(prop, tint :: Color3, 0.55)
+			end
+			table.insert(keepouts, { Centre = spot, Radius = clearance })
+		end
+	end
+end
+
+local function buildWorldIdentity(
+	zoneId: string,
+	definition: ZoneConfig.ZoneDefinition,
+	theme,
+	keepouts: { Keepout },
+	parent: Instance
+)
+	local decor = WORLD_DECOR[zoneId]
+	if decor == nil then
+		return
+	end
+
+	local centre = definition.Center
+
+	----------------------------------------------------------------------
+	-- Kit de deserto
+	----------------------------------------------------------------------
+	local desert = decor.Desert
+	if desert ~= nil and desert > 0 then
+		-- Cactos: altos e esparsos. São a silhueta que diz "deserto" de longe.
+		scatterPack(zoneId, definition, keepouts, parent, "Cactus",
+			math.floor(14 * desert), 6, 11, 6, definition.GrassColor)
+
+		-- Dunas: MÉDIAS e várias, na cor original.
+		--
+		-- O tamanho é o risco todo deste asset. Uma duna de sessenta studs vira
+		-- uma parede que esconde a pedreira; a dez ou dezesseis ela é terreno.
+		-- Por isso são muitas e pequenas em vez de poucas e grandes, e por isso
+		-- o `false` — uma duna repintada deixa de ser areia.
+		scatterPack(zoneId, definition, keepouts, parent, "SandDune",
+			math.floor(12 * desert), 10, 17, 11, false)
+
+		-- Caminhos de pedra: achatados no chão, então praticamente não ocupam
+		-- espaço de jogo e quebram a superfície lisa.
+		scatterPack(zoneId, definition, keepouts, parent, "StonePath",
+			math.floor(10 * desert), 7, 13, 4, definition.RockColor)
+
+		-- Troncos caídos: o único elemento horizontal do kit.
+		scatterPack(zoneId, definition, keepouts, parent, "FallenLog",
+			math.floor(7 * desert), 5, 9, 5, theme.TrunkColor)
+	end
+
+	----------------------------------------------------------------------
+	-- Pedras e mato, montados com peças (custo previsível)
+	----------------------------------------------------------------------
+	local boulders = decor.Boulders
+	if boulders ~= nil then
+		local rocks = propsJoined(
+			"allrocks",
+			propsNamed("rocks", AssetConfig.RockPacks, "", false, 3),
+			propsNamed("packrocks", { "Foliage" }, "rock", true, 3)
+		)
+		for _ = 1, boulders do
+			local spot: Vector3? = nil
+			for _ = 1, 20 do
+				local candidate = randomFloorSpot(definition, definition.Radius - SCENERY_MARGIN)
+				if isClearOf(keepouts, candidate, 8) then
+					spot = candidate
+					break
+				end
+			end
+			if spot == nil then
+				continue
+			end
+
+			if #rocks > 0 then
+				local prop = standProp(anyProp(rocks) :: Instance, spot, rng:NextNumber(5, 13), parent, `{zoneId}_Boulder`)
+				if prop ~= nil then
+					tintTo(prop, definition.RockColor, 0.5)
+				end
+			end
+			table.insert(keepouts, { Centre = spot, Radius = 8 })
+		end
+	end
+
+	-- Mato rasteiro na cor da GRAMA do mundo.
+	--
+	-- É o pedido da tundra ("grama branca como vegetação coberta de neve") e
+	-- resolve o mesmo vazio no deserto de vidro e na necrópole. Três peças
+	-- inclinadas por tufo: barato, e a inclinação é o que o faz parecer mato em
+	-- vez de espinhos.
+	local scrub = decor.Scrub
+	if scrub ~= nil then
+		for _ = 1, scrub do
+			local spot = randomFloorSpot(definition, definition.Radius - SCENERY_MARGIN)
+			if not isClearOf(keepouts, spot, 2) then
+				continue
+			end
+
+			local turn = rng:NextNumber(0, math.pi * 2)
+			for blade = 1, 3 do
+				local height = rng:NextNumber(1.1, 2.4)
+				local lean = math.rad(rng:NextNumber(10, 30))
+				placed(
+					`{zoneId}_Scrub`,
+					parent,
+					Vector3.new(0.34, height, 0.34),
+					CFrame.new(spot + Vector3.new(0, height / 2 - 0.2, 0))
+						* CFrame.Angles(0, turn + blade * 2.1, 0)
+						* CFrame.Angles(0, 0, lean),
+					definition.GrassColor:Lerp(Color3.new(1, 1, 1), rng:NextNumber(0, 0.25)),
+					Enum.Material.Grass
+				).CanCollide = false
+			end
+		end
+	end
+
+	----------------------------------------------------------------------
+	-- Lascas verticais (espelhos, void)
+	----------------------------------------------------------------------
+	local shards = decor.Shards
+	if shards ~= nil then
+		for _ = 1, shards do
+			local spot: Vector3? = nil
+			for _ = 1, 20 do
+				local candidate = randomFloorSpot(definition, definition.Radius - SCENERY_MARGIN)
+				if isClearOf(keepouts, candidate, 7) then
+					spot = candidate
+					break
+				end
+			end
+			if spot == nil then
+				continue
+			end
+
+			-- Altas e finas, inclinadas em direções diferentes. A verticalidade é
+			-- o ponto: o Salão dos Espelhos tinha chão claro e nada acima dele.
+			local height = rng:NextNumber(12, 26)
+			local bearing = rng:NextNumber(0, math.pi * 2)
+			local blade = placed(
+				`{zoneId}_MirrorShard`,
+				parent,
+				Vector3.new(rng:NextNumber(1.4, 3.6), height, rng:NextNumber(0.5, 1.2)),
+				CFrame.new(spot + Vector3.new(0, height / 2 - 1, 0))
+					* CFrame.Angles(0, bearing, 0)
+					* CFrame.Angles(0, 0, math.rad(rng:NextNumber(-13, 13))),
+				theme.ShardColor,
+				Enum.Material.Glass
+			)
+			blade.CanCollide = false
+			blade.CanQuery = false
+			blade.Reflectance = 0.35
+			blade.Transparency = rng:NextNumber(0.12, 0.34)
+
+			table.insert(keepouts, { Centre = spot, Radius = 7 })
+		end
+	end
+
+	----------------------------------------------------------------------
+	-- Colunas magnéticas (mundo 20)
+	----------------------------------------------------------------------
+	local pylons = decor.Pylons
+	if pylons ~= nil then
+		for index = 1, pylons do
+			local bearing = index / pylons * math.pi * 2 + 0.7
+			local distance = rng:NextNumber(60, definition.Radius - 40)
+			local spot = centre + Vector3.new(math.cos(bearing), 0, math.sin(bearing)) * distance
+
+			if not isClearOf(keepouts, spot, 10) then
+				continue
+			end
+
+			-- Um mastro escuro com um núcleo aceso preso no meio dele, como se
+			-- estivesse levitando. É a leitura de "magnético" mais barata que
+			-- existe, e nada na Caverna de Obsidiana é vertical e contínuo —
+			-- que era exatamente a queixa de os dois mundos se parecerem.
+			local height = rng:NextNumber(18, 30)
+			placed(
+				`{zoneId}_Pylon`,
+				parent,
+				Vector3.new(1.8, height, 1.8),
+				CFrame.new(spot + Vector3.new(0, height / 2 - 1, 0)),
+				definition.RockColor,
+				Enum.Material.Metal
+			).CanCollide = false
+
+			local core = placed(
+				`{zoneId}_PylonCore`,
+				parent,
+				Vector3.new(4.6, 4.6, 4.6),
+				CFrame.new(spot + Vector3.new(0, height * 0.62, 0)) * CFrame.Angles(0.5, 0.7, 0.2),
+				theme.ShardColor,
+				Enum.Material.Neon
+			)
+			core.CanCollide = false
+			core.CanQuery = false
+			core.Transparency = 0.15
+
+			-- Dois anéis presos ao mastro, um de cada lado do núcleo: a coisa
+			-- que faz "levitando" ler como levitando.
+			for side = -1, 1, 2 do
+				local ring = newDisc(
+					`{zoneId}_PylonRing`,
+					parent,
+					spot + Vector3.new(0, height * 0.62 + side * 4.2, 0),
+					0.5,
+					7
+				)
+				ring.Color = theme.ShardColor
+				ring.Material = Enum.Material.Neon
+				ring.Transparency = 0.35
+				ring.CanCollide = false
+				ring.CanQuery = false
+			end
+
+			table.insert(keepouts, { Centre = spot, Radius = 10 })
+		end
+	end
+
+	----------------------------------------------------------------------
+	-- Poça (mundo 15)
+	----------------------------------------------------------------------
+	if decor.Pond == true then
+		local bearing = math.rad(ROAD_TO_ALTAR) + 0.9
+		local spot = centre + Vector3.new(math.cos(bearing), 0, math.sin(bearing)) * 128
+
+		if isClearOf(keepouts, spot, 26) then
+			local water = newDisc(`{zoneId}_Pond`, parent, spot + Vector3.new(0, 0.55, 0), 0.6, 44)
+			water.Color = if theme.PoolColor ~= nil then theme.PoolColor else theme.ShardColor
+			water.Material = Enum.Material.Glass
+			water.Transparency = 0.35
+			water.Reflectance = 0.5
+			water.CanCollide = false
+			water.CanQuery = false
+
+			-- Um lábio de pedra em volta, senão a água lê como adesivo colorido
+			-- no chão — o mesmo defeito que o lago do saguão teve.
+			for index = 1, 14 do
+				local angle = index / 14 * math.pi * 2
+				local rim = spot + Vector3.new(math.cos(angle), 0, math.sin(angle)) * 23
+				placed(
+					`{zoneId}_PondLip`,
+					parent,
+					Vector3.new(rng:NextNumber(5, 8), rng:NextNumber(1.2, 2.4), rng:NextNumber(4, 6)),
+					CFrame.new(rim) * CFrame.Angles(0, -angle, math.rad(rng:NextNumber(-8, 8))),
+					definition.RockColor,
+					Enum.Material.Slate
+				).CanCollide = false
+			end
+
+			table.insert(keepouts, { Centre = spot, Radius = 26 })
+		end
+	end
+
+	----------------------------------------------------------------------
+	-- Planetas (SÓ o mundo 24)
+	----------------------------------------------------------------------
+	--
+	-- Pedidos aqui dentro e em lugar nenhum mais. A exclusividade não depende de
+	-- uma condição que alguém possa afrouxar depois: nenhum outro mundo chama
+	-- esta função com Planets, então nenhum outro mundo pode receber um.
+	--
+	-- Muito longe e muito acima: são fundo, não cenário. A 700 studs eles ficam
+	-- além dos islets à deriva e não têm como ser confundidos com uma ilha para
+	-- onde se possa ir.
+	if decor.Planets == true then
+		local planets = propsNamed("planets", { "Planets" }, "", false, 40)
+		if #planets > 0 then
+			for index = 1, 5 do
+				local bearing = index / 5 * math.pi * 2 + 1.1
+				local distance = rng:NextNumber(620, 900)
+				local spot = centre
+					+ Vector3.new(math.cos(bearing), 0, math.sin(bearing)) * distance
+					+ Vector3.new(0, rng:NextNumber(120, 300), 0)
+
+				local prop = standProp(
+					anyProp(planets) :: Instance,
+					spot,
+					rng:NextNumber(120, 260),
+					parent,
+					`{zoneId}_Planet`
+				)
+				-- Sem tintTo: um planeta repintado na paleta do mundo vira uma
+				-- bola roxa. A cor própria dele é o que o faz ler como planeta.
+				if prop == nil then
+					warn(`[WorldBuilder] planeta {index} não pôde ser montado em {zoneId}.`)
+				end
+			end
+		else
+			warn("[WorldBuilder] pacote Planets não carregou — mundo 24 fica sem planetas.")
+		end
+	end
+
+	----------------------------------------------------------------------
+	-- Tumbleweed (SÓ o mundo 21)
+	----------------------------------------------------------------------
+	--
+	-- Sem asset e sem sistema: uma bola de gravetos que roda e volta ao início,
+	-- animada por UM laço para todas as bolas do mundo. Três delas.
+	--
+	-- É um enfeite e por isso não pode custar como mecânica: sem física, sem
+	-- colisão, sem raycast. Ela anda em linha reta numa corda invisível e
+	-- reaparece do outro lado, que a essa distância é indistinguível de rolar
+	-- pelo deserto.
+	local tumbleweeds = decor.Tumbleweed
+	if tumbleweeds ~= nil then
+		for index = 1, tumbleweeds do
+			local ball = newPart(`{zoneId}_Tumbleweed`, parent)
+			ball.Size = Vector3.new(4.5, 4.5, 4.5)
+			ball.Shape = Enum.PartType.Ball
+			ball.Color = theme.TrunkColor:Lerp(Color3.fromRGB(196, 170, 112), 0.5)
+			ball.Material = Enum.Material.Grass
+			ball.Transparency = 0.25
+			ball.CanCollide = false
+			ball.CanQuery = false
+			ball.CanTouch = false
+			ball.CastShadow = false
+
+			local bearing = index / tumbleweeds * math.pi * 2
+			local across = Vector3.new(-math.sin(bearing), 0, math.cos(bearing))
+			local along = Vector3.new(math.cos(bearing), 0, math.sin(bearing))
+			local lane = centre + across * rng:NextNumber(-110, 110)
+			local span = definition.Radius - 30
+			local speed = rng:NextNumber(11, 17)
+			local phase = rng:NextNumber(0, 1)
+
+			task.spawn(function()
+				while ball.Parent ~= nil do
+					local t = (os.clock() * speed / (span * 2) + phase) % 1
+					local travel = -span + t * span * 2
+					ball.CFrame = CFrame.new(lane + along * travel + Vector3.new(0, 2.4, 0))
+						* CFrame.Angles(os.clock() * 2.4, 0, 0)
+					task.wait(0.06)
+				end
+			end)
+		end
+	end
+end
+
 local function buildZoneScenery(zoneId: string, definition: ZoneConfig.ZoneDefinition, parent: Instance)
 	local theme = definition.Theme
 	if theme == nil then
@@ -3380,6 +3854,12 @@ local function buildZoneScenery(zoneId: string, definition: ZoneConfig.ZoneDefin
 	-- no dune at all.
 	reportProps()
 	buildZoneSignature(zoneId, definition, theme, keepouts, parent)
+
+	-- Antes do scatter genérico, e pela mesma razão que a duna: o que é
+	-- identidade do mundo escolhe o lugar primeiro, e a vegetação comum
+	-- preenche o que sobrou em volta. O contrário deixaria um cacto nascendo
+	-- dentro de uma pedra.
+	buildWorldIdentity(zoneId, definition, theme, keepouts, parent)
 
 	scatterZone(zoneId, definition, theme, keepouts, parent)
 	plantZoneGrass(zoneId, definition, theme, keepouts, parent)
