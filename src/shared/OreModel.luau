@@ -933,12 +933,35 @@ local function adoptModel(source: Instance, root: CFrame, scale: number, resourc
 		core.Name = OreModel.CORE_NAME
 		core.Shape = Enum.PartType.Ball
 		-- Bem menor que a pedra: é uma brasa dentro dela, não uma segunda pedra.
-		local reach = math.max(node.Size.X, node.Size.Y, node.Size.Z)
-		core.Size = Vector3.one * math.max(reach * 0.34, 0.6)
+		--
+		-- Os três números abaixo já foram 0.34 / 0.45 / 0.25, e juntos produziam
+		-- exatamente aquilo que este núcleo existe para NÃO ser: uma bola branca
+		-- no meio do minério. Cada um entrava com uma parte da culpa.
+		--
+		-- O tamanho saía de `math.max` das dimensões do nó — e o nó é a MAIOR
+		-- peça do modelo buscado. Num cristal que se abre em leque a maior peça
+		-- é uma coluna inteira, e o centro do leque é vazio: 34% dela vira uma
+		-- esfera que sobra para fora da pedra em vez de caber dentro dela. Por
+		-- isso agora sai do `math.min`, que é a espessura da peça e não o
+		-- comprimento — a medida que diz onde há pedra para esconder a brasa.
+		--
+		-- A cor ia 45% em direção ao branco. Num minério de tom já claro isso
+		-- chega perto do branco puro, e Neon descarta sombreado — o resultado
+		-- lê como plástico aceso, não como luz vindo de dentro. Na cor do
+		-- próprio minério ele vira o coração da pedra.
+		--
+		-- E 0.25 de transparência é sólido o bastante para ser lido como um
+		-- objeto. Brilho precisa deixar ver através.
+		--
+		-- O mesmo erro já tinha sido cometido e corrigido no veio, e o
+		-- comentário de lá continua valendo palavra por palavra: um núcleo do
+		-- tamanho do das gemas flutuantes transformava o terraço num holofote.
+		local reach = math.min(node.Size.X, node.Size.Y, node.Size.Z)
+		core.Size = Vector3.one * math.clamp(reach * 0.55, 0.4, 2.2)
 		core.CFrame = root
-		core.Color = tint:Lerp(Color3.new(1, 1, 1), 0.45)
+		core.Color = tint:Lerp(Color3.new(1, 1, 1), 0.15)
 		core.Material = Enum.Material.Neon
-		core.Transparency = 0.25
+		core.Transparency = 0.45
 		core.Anchored = true
 		core.CanCollide = false
 		core.CanQuery = false
