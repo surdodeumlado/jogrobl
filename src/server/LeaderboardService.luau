@@ -444,6 +444,17 @@ function LeaderboardService.ClearPlayer(userId: number): (number, number)
 		end
 	end
 
+	-- E relê os quadros AGORA, em vez de esperar o ciclo de sessenta segundos.
+	--
+	-- Sem isto o RemoveAsync acima funciona e não parece ter funcionado: as
+	-- placas e o pódio do campeão continuam desenhando a leitura anterior, que
+	-- ainda tem o nome removido nela. Um minuto olhando o próprio nome no
+	-- primeiro lugar depois de mandar apagá-lo é indistinguível de o comando não
+	-- ter feito nada.
+	for boardId in BOARDS do
+		fetchBoard(boardId)
+	end
+
 	return removed, failed
 end
 

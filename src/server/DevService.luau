@@ -33,6 +33,8 @@ local PlayerStateService = require(script.Parent.PlayerStateService)
 local WorldBuilder = require(script.Parent.WorldBuilder)
 local TravelService = require(script.Parent.TravelService)
 local Notifier = require(script.Parent.Notifier)
+local PetService = require(script.Parent.PetService)
+local PickaxeService = require(script.Parent.PickaxeService)
 local LeaderboardService = require(script.Parent.LeaderboardService)
 local WorldAudit = require(script.Parent.WorldAudit)
 local EconomyAudit = require(script.Parent.EconomyAudit)
@@ -307,17 +309,39 @@ local function handle(player: Player, message: string): string?
 			return "perfil não está carregado"
 		end
 
+		-- ZERAR O PERFIL NÃO BASTA, e a primeira versão disto provou isso.
+		--
+		-- Três coisas vivem FORA do perfil e continuavam intactas depois da
+		-- limpeza, fazendo o comando parecer que não tinha feito nada:
+		--
+		--   1. Os pets orbitando. PetRenderer desenha a partir de um ATRIBUTO no
+		--      Player, não do perfil — esvaziar EquippedPets sem republicar
+		--      deixava os bichos girando exatamente como antes.
+		--   2. A picareta na mão. Mesmo mecanismo, outro atributo.
+		--   3. O pódio e as placas. O placar relê a cada sessenta segundos, então
+		--      o nome removido continuava desenhado por mais um minuto.
+		PetService.Publish(player)
+		PickaxeService.Publish(player)
+
 		-- O placar é outro banco, e ele NÃO aceita zero: a escrita dele ignora
 		-- valores <= 0, então limpar o perfil sozinho deixaria a pontuação
-		-- antiga lá para sempre. Só RemoveAsync tira.
+		-- antiga lá para sempre. Só RemoveAsync tira — e ClearPlayer relê os
+		-- quadros na sequência para o pódio cair na hora.
 		local removed, failed = LeaderboardService.ClearPlayer(player.UserId)
 
 		PlayerStateService.Refresh(player)
-		warn(
-			`[Dev] perfil de {player.Name} zerado. Placares limpos: {removed}, falhas: {failed}.`
-				.. ` Saia e entre de novo para o personagem recomeçar do zero.`
-		)
-		return `conta zerada. Placares limpos: {removed} (falhas: {failed}). Saia e entre de novo.`
+
+		-- E o personagem volta do zero: a ferramenta na mão é construída no
+		-- spawn a partir da picareta equipada, e recarregar é mais barato e mais
+		-- confiável que desmontar à mão o que cada serviço pendurou nele.
+		task.delay(0.2, function()
+			pcall(function()
+				player:LoadCharacterAsync()
+			end)
+		end)
+
+		warn(`[Dev] HARD RESET de {player.Name}: perfil, pets, picareta e {removed} placar(es) — falhas: {failed}.`)
+		return `zerado de verdade: perfil, pets, picareta e {removed} placar(es). Personagem recarregando.`
 	elseif command == "censo" then
 		-- Reexecuta as auditorias AGORA, em vez de só no boot.
 		--

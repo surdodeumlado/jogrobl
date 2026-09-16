@@ -75,6 +75,15 @@ local function syncAttribute(player: Player)
 	player:SetAttribute(EQUIPPED_ATTRIBUTE, table.concat(profile.Data.EquippedPets, ","))
 end
 
+-- Exposta porque quem MEXE no perfil por fora precisa poder republicar.
+--
+-- PetRenderer desenha a partir deste atributo, não do perfil — o perfil é do
+-- servidor e o atributo é o que os clientes enxergam. Então um caminho que
+-- esvazie EquippedPets sem chamar isto deixa os pets orbitando o jogador como
+-- se nada tivesse acontecido: foi exatamente o que aconteceu no primeiro
+-- /zerar, e de fora parece que o comando não zerou nada.
+PetService.Publish = syncAttribute
+
 -- Drops equipped entries the player no longer owns, or that overflow their
 -- current slot count. Slots only ever grow (rebirths never decrease), so the
 -- overflow case is really about a profile edited by an older build — but
