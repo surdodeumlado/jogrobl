@@ -32,6 +32,8 @@ local PlayerDataManager = require(script.Parent.PlayerDataManager)
 local PlayerStateService = require(script.Parent.PlayerStateService)
 local WorldBuilder = require(script.Parent.WorldBuilder)
 local Notifier = require(script.Parent.Notifier)
+local WorldAudit = require(script.Parent.WorldAudit)
+local EconomyAudit = require(script.Parent.EconomyAudit)
 local ZoneConfig = require(ReplicatedStorage.Shared.ZoneConfig)
 local UpgradeConfig = require(ReplicatedStorage.Shared.UpgradeConfig)
 local PickaxeConfig = require(ReplicatedStorage.Shared.PickaxeConfig)
@@ -242,6 +244,7 @@ local HELP = table.concat({
 	"/ir <n|nome> — vai pro mundo (ex: /ir 12, /ir caramelo)",
 	"/proximo e /voltar — anda um mundo na escada",
 	"/veloz [n] — velocidade de caminhada (padrão 60, /veloz 16 volta ao normal)",
+	"/censo — roda WorldAudit e EconomyAudit agora (use depois de andar a escada)",
 	"/mundos — lista a escada numerada",
 	"/ajuda — esta lista",
 }, "\n")
@@ -275,6 +278,25 @@ local function handle(player: Player, message: string): string?
 		end
 		humanoid.WalkSpeed = speed
 		return `velocidade {speed}`
+	elseif command == "censo" then
+		-- Reexecuta as auditorias AGORA, em vez de só no boot.
+		--
+		-- Necessário porque as ilhas são construídas sob demanda: a auditoria do
+		-- boot enxerga o saguão e o Vale, que é o custo real de um servidor recém
+		-- aberto — mas não responde de onde vêm os emissores dos mundos que
+		-- ninguém visitou ainda. Andar a escada e rodar isto mede o que o jogador
+		-- que foi longe realmente carrega.
+		task.spawn(function()
+			local ok, err = pcall(WorldAudit.Run)
+			if not ok then
+				warn(`[Dev] WorldAudit falhou: {err}`)
+			end
+			local okEcon, errEcon = pcall(EconomyAudit.Run)
+			if not okEcon then
+				warn(`[Dev] EconomyAudit falhou: {errEcon}`)
+			end
+		end)
+		return "auditorias rodando — veja [WorldAudit] e [EconomyAudit] no Output"
 	elseif command == "mundos" then
 		local lines = {}
 		for index, zoneId in ladder() do
@@ -344,7 +366,7 @@ function DevService.Start()
 	-- a mesma função, então não há duas implementações para divergir.
 	local TextChatService = game:GetService("TextChatService")
 
-	for _, name in { "tudo", "ir", "proximo", "voltar", "veloz", "mundos", "ajuda" } do
+	for _, name in { "tudo", "ir", "proximo", "voltar", "veloz", "mundos", "censo", "ajuda" } do
 		local chatCommand = Instance.new("TextChatCommand")
 		chatCommand.Name = `Dev_{name}`
 		chatCommand.PrimaryAlias = `/{name}`

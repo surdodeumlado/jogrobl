@@ -415,17 +415,67 @@ local function census()
 	-- Agrupado pelo NOME DO PAI com o dígito final cortado, porque os emissores
 	-- deste jogo nascem em famílias numeradas (Weather1..4, Haze, RichAura) e o
 	-- que interessa é a família, não a instância.
-	local emittersBySource: { [string]: number } = {}
+	-- Cada família guarda o suficiente para DECIDIR, não só para contar.
+	--
+	-- As perguntas que o relatório precisa responder, e por que cada campo:
+	--
+	--   quantos          -> tamanho do problema;
+	--   desligados       -> um emissor com Enabled=false ou Rate=0 ainda é um
+	--                       objeto replicado e ainda aparece no total, mas não
+	--                       custa desenho. Separar os dois evita "otimizar" algo
+	--                       que já estava apagado;
+	--   taxa somada      -> partículas por segundo é o custo REAL. Vinte
+	--                       emissores a 3/s custam menos que um a 200/s, e o
+	--                       total de emissores não distingue os dois casos;
+	--   exemplo          -> o caminho completo de um deles, para ir olhar. Sem
+	--                       isso, "RichAura: 340" ainda não diz de onde sai;
+	--   mundos           -> em quantas zonas distintas a família aparece. Um
+	--                       número igual à contagem de ilhas é geração normal;
+	--                       muito maior é duplicação.
+	type EmitterFamily = {
+		count: number,
+		disabled: number,
+		rate: number,
+		sample: string,
+		zones: { [string]: boolean },
+	}
+	local emittersBySource: { [string]: EmitterFamily } = {}
 
 	local function noteEmitter(emitter: Instance)
 		emitters += 1
+
 		local host = emitter.Parent
 		local label = if host ~= nil then host.Name else "?"
+
+		-- A zona é lida do prefixo ANTES de ele ser removido do rótulo.
+		local zone = string.match(label, "^(Zone%d+)_") or "—"
+
 		-- "Zone7_GroundHaze2" -> "GroundHaze". O prefixo da zona e o índice só
 		-- fragmentariam a contagem em vinte e cinco linhas de um.
 		label = string.gsub(label, "^Zone%d+_", "")
 		label = string.gsub(label, "%d+$", "")
-		emittersBySource[label] = (emittersBySource[label] or 0) + 1
+		-- O nome do emissor entra junto quando o pai não diz nada: um pacote da
+		-- loja costuma pendurar "Fire" e "Smoke" numa peça chamada "Part", e
+		-- agrupar tudo como "Part" esconde exatamente o que se quer ver.
+		if label == "" or label == "Part" or label == "Model" or label == "?" then
+			label = `{label}/{emitter.Name}`
+		end
+
+		local family = emittersBySource[label]
+		if family == nil then
+			family = { count = 0, disabled = 0, rate = 0, sample = emitter:GetFullName(), zones = {} }
+			emittersBySource[label] = family
+		end
+
+		family.count += 1
+		family.zones[zone] = true
+
+		local particle = emitter :: ParticleEmitter
+		if not particle.Enabled or particle.Rate <= 0 then
+			family.disabled += 1
+		else
+			family.rate += particle.Rate
+		end
 	end
 
 	for _, child in Workspace:GetChildren() do
@@ -489,15 +539,34 @@ local function census()
 			table.insert(sources, label)
 		end
 		table.sort(sources, function(a, b)
-			return emittersBySource[a] > emittersBySource[b]
+			return emittersBySource[a].count > emittersBySource[b].count
 		end)
 
+		warn("    família                    qtd  apagados   part/s  mundos  exemplo")
 		for index, label in sources do
-			-- Dez linhas bastam: a cauda longa nunca é o problema.
-			if index > 10 then
+			-- Doze linhas bastam: a cauda longa nunca é o problema.
+			if index > 12 then
+				warn(`    ... e mais {#sources - 12} família(s) menores`)
 				break
 			end
-			warn(string.format("    %-24s %5d", label, emittersBySource[label]))
+
+			local family = emittersBySource[label]
+			local zoneCount = 0
+			for _ in family.zones do
+				zoneCount += 1
+			end
+
+			warn(
+				string.format(
+					"    %-24s %5d %9d %8.0f %7d  %s",
+					label,
+					family.count,
+					family.disabled,
+					family.rate,
+					zoneCount,
+					family.sample
+				)
+			)
 		end
 	end
 

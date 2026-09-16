@@ -42,6 +42,7 @@
 -- chamadas, e uma métrica que derruba uma compra é pior que métrica nenhuma.
 
 local AnalyticsService = game:GetService("AnalyticsService")
+local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 
 local PlayerDataManager = require(script.Parent.PlayerDataManager)
@@ -133,6 +134,65 @@ end
 -- sumidouro de mil sobre um saldo de mil e um sobre um saldo de um milhão são
 -- decisões completamente diferentes do jogador, e só o segundo número separa as
 -- duas.
+-- Fontes de alta frequência são ACUMULADAS e enviadas uma vez por minuto.
+--
+-- A venda é o caso, e o passe de Auto-Sell é o que transforma isso num
+-- problema: ele vende a cada dez segundos, então um jogador minerando por meia
+-- hora gera cento e oitenta eventos sozinho. Com trinta pessoas num servidor
+-- são dez mil por hora, e o AnalyticsService tem cota — o resultado seria dado
+-- descartado, não dado detalhado.
+--
+-- Agregar preserva exatamente o que se quer saber. A pergunta é "quanto do
+-- dinheiro do jogo vem de vender", e a soma de um minuto responde isso igual à
+-- soma de cada venda; o que se perde é o horário exato de cada uma, que não
+-- alimenta decisão nenhuma.
+--
+-- Os SUMIDOUROS não passam por aqui de propósito: cada um é uma decisão isolada
+-- do jogador (comprar um mundo, um ovo, uma melhoria, renascer), acontecem
+-- poucas vezes, e o que interessa neles é justamente o evento individual.
+local FLUSH_SECONDS = 60
+local pending: { [Player]: { [string]: number } } = {}
+
+local function flush(player: Player)
+	local byReason = pending[player]
+	if byReason == nil then
+		return
+	end
+	pending[player] = nil
+
+	local profile = PlayerDataManager.GetProfile(player)
+	local balance = if profile ~= nil then profile.Data.Cash else 0
+
+	for reason, amount in byReason do
+		if amount > 0 then
+			pcall(function()
+				AnalyticsService:LogEconomyEvent(
+					player,
+					Enum.AnalyticsEconomyFlowType.Source,
+					"Cash",
+					math.floor(amount),
+					math.floor(balance),
+					Enum.AnalyticsEconomyTransactionType.Gameplay.Name,
+					reason
+				)
+			end)
+		end
+	end
+end
+
+function Telemetry.CashAccumulated(player: Player, amount: number, reason: string)
+	if not ENABLED or amount <= 0 then
+		return
+	end
+
+	local byReason = pending[player]
+	if byReason == nil then
+		byReason = {}
+		pending[player] = byReason
+	end
+	byReason[reason] = (byReason[reason] or 0) + amount
+end
+
 function Telemetry.Cash(player: Player, flow: "source" | "sink", amount: number, reason: string, balance: number)
 	if not ENABLED or amount <= 0 then
 		return
@@ -174,6 +234,28 @@ function Telemetry.Event(player: Player, eventName: string, value: number?)
 	end
 	pcall(function()
 		AnalyticsService:LogCustomEvent(player, eventName, value or 1)
+	end)
+end
+
+function Telemetry.Start()
+	if not ENABLED then
+		return
+	end
+
+	-- A descarga na SAÍDA é a que não pode faltar.
+	--
+	-- Sem ela, o último minuto de cada sessão é perdido — e a sessão inteira é
+	-- perdida para quem joga menos de um minuto, que é exatamente a população
+	-- cujo comportamento mais importa entender.
+	Players.PlayerRemoving:Connect(flush)
+
+	task.spawn(function()
+		while true do
+			task.wait(FLUSH_SECONDS)
+			for _, player in Players:GetPlayers() do
+				flush(player)
+			end
+		end
 	end)
 end
 

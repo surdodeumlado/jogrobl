@@ -71,6 +71,7 @@ local ToolService = require(script.ToolService)
 local PickaxeService = require(script.PickaxeService)
 local BossService = require(script.BossService)
 local UnlockService = require(script.UnlockService)
+local Telemetry = require(script.Telemetry)
 local DevService = require(script.DevService)
 local ConfigAudit = require(script.ConfigAudit)
 local WorldAudit = require(script.WorldAudit)
@@ -220,6 +221,7 @@ LeaderboardService.Start()
 -- Depois de todo mundo, porque os comandos escrevem no perfil e teleportam: os
 -- serviços que reagem a isso têm que estar ouvindo antes. Não faz nada num
 -- servidor publicado a menos que um UserId esteja listado dentro dele.
+Telemetry.Start()
 DevService.Start()
 
 -- Last, so their reports are the final thing in the output rather than buried

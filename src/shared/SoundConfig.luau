@@ -196,12 +196,22 @@ local SoundConfig: { [string]: SoundDefinition } = {
 	-- cristal dourado, e um som que vem de uma direção faz duas pessoas olharem
 	-- para o mesmo ponto. Um 2D faria cada um ouvir um aviso particular.
 	--
-	-- Divide o id com NewWorld por enquanto, num volume mais baixo: os dois são
-	-- "apareceu algo", e isso é melhor que silêncio enquanto não há um id
-	-- próprio. Vale trocar por um som curto e metálico quando houver — este é o
-	-- único lugar a editar.
+	-- ID PRÓPRIO PENDENTE. Zero = não configurado, e Audio.Play trata isso como
+	-- silêncio — o efeito visual (o anel dourado) toca de qualquer forma.
+	--
+	-- Estava dividindo o id com NewWorld, e isso era errado de um jeito que não
+	-- aparece lendo o config: são dois eventos de peso completamente diferente
+	-- com o mesmo timbre. Um mundo novo acontece um punhado de vezes na vida do
+	-- jogador; um veio rico, várias vezes por sessão. Reusar o timbre gasta o
+	-- marco para pagar o evento — que é exatamente o erro que a hierarquia de
+	-- volumes acima existe para não cometer.
+	--
+	-- O que procurar na Creator Store: algo CURTO (menos de um segundo),
+	-- metálico ou cristalino, sem cauda longa. Ele toca no ponto onde o veio
+	-- nasce e tem que dizer "olha ali" sem competir com a picareta batendo.
+	-- ConfigAudit lista este id como pendente no boot até ser preenchido.
 	RichVein = {
-		AssetId = 134085405153726,
+		AssetId = 0,
 		Volume = 0.42,
 		Spatial = true,
 	},

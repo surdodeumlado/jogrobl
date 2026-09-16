@@ -281,9 +281,9 @@ function EconomyService.SellInventory(player: Player): number
 	profile.Data.TotalSells += 1
 
 	Telemetry.Step(player, "FirstSell")
-	-- A venda é de longe a maior fonte de Cash do jogo, então é a linha de base
-	-- contra a qual toda outra fonte é lida no painel.
-	Telemetry.Cash(player, "source", earned, "Venda", profile.Data.Cash)
+	-- Acumulada, não enviada a cada venda: com o passe de Auto-Sell isto
+	-- dispararia a cada dez segundos. Ver Telemetry.CashAccumulated.
+	Telemetry.CashAccumulated(player, earned, "Venda")
 
 	PlayerStateService.Refresh(player)
 	QuestService.RecordProgress(player, "SellInventory", 1)
