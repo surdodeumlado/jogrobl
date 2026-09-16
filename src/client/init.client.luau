@@ -42,6 +42,7 @@ local PetConfig = require(ReplicatedStorage.Shared.PetConfig)
 local QuestConfig = require(ReplicatedStorage.Shared.QuestConfig)
 local RewardConfig = require(ReplicatedStorage.Shared.RewardConfig)
 local ZoneConfig = require(ReplicatedStorage.Shared.ZoneConfig)
+local Format = require(ReplicatedStorage.Shared.Format)
 
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local sellInventoryRemote = Remotes:WaitForChild("SellInventory") :: RemoteEvent
@@ -390,7 +391,10 @@ local function setBadge(panelId: string, active: boolean)
 end
 
 local function renderStats()
-	Theme.rollNumber(hud.CashPill.Value, snapshot.Cash, Theme.abbreviate)
+	-- Com cifrão, por Format.Cash. A pílula perdeu a legenda "CASH" — o símbolo
+	-- passa a ser o que diz que aquilo é dinheiro, e ele custa um caractere em
+	-- vez de uma linha de texto.
+	Theme.rollNumber(hud.CashPill.Value, snapshot.Cash, Format.Cash)
 	-- The multiplier compounds now, so it arrives as 1.96, 2.744, 3.8416…
 	-- One decimal keeps it a number the player can read at a glance.
 	hud.RebirthPill.Value.Text = `{snapshot.Rebirths}  x{string.format("%.1f", snapshot.CashMultiplier)}`
@@ -413,9 +417,12 @@ local function renderStats()
 		local alpha = math.clamp(combat.Backpack / capacity, 0, 1)
 		local full = combat.Backpack >= combat.BackpackCapacity
 
+		-- Abreviado dos dois lados: a capacidade passa de mil com as melhorias de
+		-- mochila, e "12 / 1215" empurrava o texto para fora da barra exatamente
+		-- como o Cash fazia na pílula.
 		hud.BackpackBar.SetProgress(alpha, if full
-			then `🎒 MOCHILA CHEIA — VÁ VENDER`
-			else `🎒 {math.floor(combat.Backpack)} / {math.floor(combat.BackpackCapacity)}`)
+			then `🎒 CHEIA — VÁ VENDER`
+			else `🎒 {Format.Fraction(combat.Backpack, combat.BackpackCapacity)}`)
 		hud.BackpackBar.Fill.BackgroundColor3 = if full
 			then Theme.Colors.Error
 			elseif alpha > 0.75 then Theme.Colors.Ready

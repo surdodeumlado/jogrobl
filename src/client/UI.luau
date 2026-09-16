@@ -99,30 +99,39 @@ function UI.Create()
 	--------------------------------------------------------------------
 	-- Top-left currency cluster
 	--------------------------------------------------------------------
+	-- Um cluster COMPACTO, e a economia de espaço vem de tirar palavra, não de
+	-- espremer número.
+	--
+	-- As pílulas tinham 46px de altura, 340px de largura somados, e cada uma
+	-- carregava uma legenda ("CASH", "RENASCIMENTOS") acima do valor. A legenda
+	-- era o gasto inútil: um ícone de moeda dourada com um número em dólar ao
+	-- lado já é "cash" para qualquer pessoa que joga Roblox, e a palavra embaixo
+	-- dobrava a altura do componente para repetir o que o ícone dizia.
+	--
+	-- Sem legenda, 38px de altura chegam e o conjunto cabe em 270px. A
+	-- informação é exatamente a mesma e ocupa 40% menos tela.
 	local statBar = Instance.new("Frame")
 	statBar.Name = "StatBar"
-	statBar.Position = UDim2.new(0, 16, 0, 16)
-	statBar.Size = UDim2.new(0, 340, 0, 46)
+	statBar.Position = UDim2.new(0, 14, 0, 14)
+	statBar.Size = UDim2.new(0, 280, 0, 38)
 	statBar.BackgroundTransparency = 1
 	statBar.Parent = screenGui
 
-	Theme.listLayout(statBar, 8, Enum.FillDirection.Horizontal)
+	Theme.listLayout(statBar, Theme.Scale.Space, Enum.FillDirection.Horizontal)
 
 	hud.CashPill = Widgets.statPill(statBar, {
 		Name = "CashPill",
 		Icon = "💰",
-		Caption = "CASH",
 		Color = Theme.Colors.Cash,
 		Order = 1,
-		Size = UDim2.new(0, 176, 0, 46),
+		Size = UDim2.new(0, 152, 0, 38),
 	})
 	hud.RebirthPill = Widgets.statPill(statBar, {
 		Name = "RebirthPill",
 		Icon = "⭐",
-		Caption = "RENASCIMENTOS",
 		Color = Theme.Colors.Rebirth,
 		Order = 2,
-		Size = UDim2.new(0, 150, 0, 46),
+		Size = UDim2.new(0, 112, 0, 38),
 	})
 
 	-- Where you are. Irrelevant with one island, necessary with five —
@@ -857,8 +866,10 @@ function UI.Create()
 		-- rows inside it, and every row's height is written here beside the one
 		-- that decides it.
 		local rowHeight = 22
-		local bagHeight = CARD_PADDING + (if compact then 28 else 32)
-		local progressHeight = CARD_PADDING + rowHeight + (if compact then 0 else 4 + rowHeight)
+		local bagHeight = CARD_PADDING + (if compact then 28 else 30)
+		-- UMA linha, em qualquer resolução, agora que a de mundo saiu. O card de
+		-- progresso deixou de ser o elemento mais alto da tela e virou uma tira.
+		local progressHeight = CARD_PADDING + rowHeight
 		local gap = 6
 
 		local chipSize = if compact then 26 else CHIP_SIZE
@@ -876,18 +887,24 @@ function UI.Create()
 		worldCaption.Position = UDim2.new(0, barInset, 0, rowHeight + 4)
 		worldBar.Root.Size = UDim2.new(1, -(barInset + 82), 0, rowHeight)
 
-		-- The compact card is ONE row tall, so the second row has to go — and
-		-- until now it did not: progressHeight dropped to a single row while the
-		-- world bar stayed parented at y=26, so it hung 18px out the bottom of a
-		-- card that clips nothing. The diagnostic caught it as VAZA-DO-PAI.
+		-- A LINHA DE MUNDO SAIU DA HUD, em toda resolução.
 		--
-		-- Hidden rather than squeezed, and the rebirth row is the one that stays,
-		-- because on a phone there is room for exactly one number and rebirth is
-		-- the loop the whole game is built around. What the next world costs is
-		-- still on the goal card and on the pad itself.
-		local showWorldRow = not compact
-		worldCaption.Visible = showWorldRow
-		worldBar.Root.Visible = showWorldRow
+		-- Ela era uma barra de largura quase total dizendo quanto falta para o
+		-- próximo mundo — e essa informação já está escrita em dois lugares
+		-- melhores: na placa do próprio pad, que fica ao lado da porta, e no card
+		-- de objetivo. Três cópias do mesmo número, e a mais cara delas ocupando
+		-- a borda inferior permanentemente.
+		--
+		-- O que ficou na barra inferior é só o que é AÇÃO ou estado imediato: a
+		-- mochila e a viagem para vender. Progresso de longo prazo pertence ao
+		-- mundo e aos painéis, não ao rodapé da tela.
+		--
+		-- Os objetos continuam existindo e continuam sendo atualizados por
+		-- init.client — eles só não são mais desenhados. Manter as chaves vivas é
+		-- o que permite fazer isto sem tocar no laço de atualização; deletá-las
+		-- exigiria editar o consumidor e correr risco por ganho nenhum.
+		worldCaption.Visible = false
+		worldBar.Root.Visible = false
 
 		bagCard.Size = UDim2.new(1, 0, 0, bagHeight)
 		progressCard.Size = UDim2.new(1, 0, 0, progressHeight)

@@ -25,41 +25,117 @@ local Theme = {}
 -- forever if no click sound id is configured.
 Theme.PressSound = nil :: (() -> ())?
 
+--------------------------------------------------------------------------
+-- A PALETA. Cinco cores com FUNÇÃO, não onze com nome de painel.
+--------------------------------------------------------------------------
+--
+-- Havia onze acentos, um por categoria de painel: Cash verde, Rebirth roxo,
+-- Sell verde, Upgrade azul, Egg laranja, Quest turquesa, Reward rosa, Gamepass
+-- magenta, Product ciano, Code índigo, Pets dourado. O comentário antigo dizia
+-- que "a cor sozinha diz que tipo de controle é aquilo", e essa premissa é
+-- falsa: ninguém memoriza onze cores, então na prática a cor não dizia nada e
+-- a tela virava um arco-íris.
+--
+-- Agora cada cor carrega um SIGNIFICADO, que é coisa que se aprende em uma
+-- olhada porque já se sabe de fora do jogo:
+--
+--   Gold      prêmio, raro, premium, "isto vale dinheiro"
+--   Green     sucesso, confirmado, ganho
+--   Red       perigo, erro, falta
+--   Blue      informação, navegação neutra
+--   Violet    especial — renascimento, VIP, o que é da identidade do jogo
+--
+-- AS CHAVES ANTIGAS CONTINUAM TODAS AQUI, apontando para as novas. Isso é
+-- deliberado e é o que torna esta mudança segura: existem dezenas de usos de
+-- Theme.Colors.Quest, .Egg, .Product espalhados pelos painéis, e reapontá-las
+-- troca a aparência do jogo inteiro sem editar um único call site. Nada some,
+-- nada quebra, e a consolidação é reversível numa linha.
+local GOLD = Color3.fromRGB(255, 193, 64)
+local GREEN = Color3.fromRGB(80, 206, 118)
+local RED = Color3.fromRGB(232, 84, 84)
+local BLUE = Color3.fromRGB(78, 162, 240)
+local VIOLET = Color3.fromRGB(176, 118, 255)
+
 Theme.Colors = {
-	-- Surfaces, darkest to lightest.
-	Scrim = Color3.fromRGB(8, 6, 14),
-	PanelDeep = Color3.fromRGB(30, 26, 44),
-	Panel = Color3.fromRGB(43, 37, 63),
-	PanelRaised = Color3.fromRGB(56, 48, 80),
-	Stroke = Color3.fromRGB(16, 13, 24),
+	-- Superfícies, da mais escura para a mais clara.
+	--
+	-- Navy profundo em vez do roxo acinzentado anterior: o mundo é colorido e
+	-- saturado, então a UI tem que ser o fundo neutro contra o qual ele aparece.
+	-- Um painel roxo sobre um mundo roxo não tem contorno.
+	Scrim = Color3.fromRGB(6, 8, 16),
+	PanelDeep = Color3.fromRGB(19, 24, 40),
+	Panel = Color3.fromRGB(28, 35, 56),
+	PanelRaised = Color3.fromRGB(40, 49, 76),
+	Stroke = Color3.fromRGB(10, 13, 22),
 
 	Text = Color3.fromRGB(255, 255, 255),
-	TextMuted = Color3.fromRGB(176, 170, 199),
+	TextMuted = Color3.fromRGB(150, 162, 190),
 
-	-- One accent per action category, kept stable everywhere so color alone
-	-- tells a player what kind of thing a control is.
-	Cash = Color3.fromRGB(74, 199, 94),
-	Rebirth = Color3.fromRGB(167, 96, 239),
-	Sell = Color3.fromRGB(56, 178, 88),
-	Upgrade = Color3.fromRGB(46, 140, 220),
-	Egg = Color3.fromRGB(238, 150, 52),
-	Quest = Color3.fromRGB(56, 178, 152),
-	Reward = Color3.fromRGB(232, 84, 132),
-	Gamepass = Color3.fromRGB(214, 51, 132),
-	Product = Color3.fromRGB(0, 172, 193),
-	Code = Color3.fromRGB(122, 122, 214),
-	Pets = Color3.fromRGB(240, 186, 62),
+	-- Os cinco significados.
+	Gold = GOLD,
+	Green = GREEN,
+	Red = RED,
+	Blue = BLUE,
+	Violet = VIOLET,
 
-	-- Shared binary states. Ready/Disabled read the same in every panel on
-	-- purpose — grey means "you can't do this yet" game-wide.
-	Ready = Color3.fromRGB(255, 186, 20),
-	Disabled = Color3.fromRGB(86, 82, 102),
-	Success = Color3.fromRGB(74, 199, 94),
-	Error = Color3.fromRGB(226, 76, 76),
+	-- As chaves de sempre, agora mapeadas por SIGNIFICADO.
+	Cash = GOLD, -- dinheiro é dourado em todo jogo que já existiu
+	Rebirth = VIOLET,
+	Sell = GREEN,
+	Upgrade = BLUE,
+	Egg = GOLD,
+	Quest = BLUE,
+	Reward = GOLD,
+	Gamepass = VIOLET,
+	Product = GOLD,
+	Code = BLUE,
+	Pets = GREEN,
 
-	RarityCommon = Color3.fromRGB(150, 150, 164),
-	RarityRare = Color3.fromRGB(56, 134, 220),
-	RarityLegendary = Color3.fromRGB(240, 176, 40),
+	-- Estados binários compartilhados. Ready/Disabled leem igual em todo painel
+	-- de propósito — cinza significa "ainda não dá" no jogo inteiro.
+	Ready = GOLD,
+	Disabled = Color3.fromRGB(74, 82, 102),
+	Success = GREEN,
+	Error = RED,
+
+	RarityCommon = Color3.fromRGB(158, 170, 192),
+	RarityRare = BLUE,
+	RarityLegendary = GOLD,
+}
+
+--------------------------------------------------------------------------
+-- A ESCALA. Um lugar para raio, contorno, espaçamento e tamanho de texto.
+--------------------------------------------------------------------------
+--
+-- Estavam como literais espalhados: raio 8 aqui, 12 ali, 10 num terceiro
+-- lugar; contorno 2 num painel e 3 no vizinho. Nenhum desses números estava
+-- errado sozinho, e é exatamente por isso que a interface parecia montada por
+-- pessoas diferentes — a inconsistência não aparece em nenhuma tela isolada,
+-- só na soma delas.
+Theme.Scale = {
+	-- Raio. Três degraus, e não um por componente.
+	RadiusSmall = 8, -- chips, badges, campos
+	Radius = 14, -- cards, botões
+	RadiusLarge = 20, -- painéis
+
+	-- Contorno. Fino e escuro, e só um por elemento.
+	--
+	-- O excesso de contorno era metade da sensação de "peso": cada card tinha
+	-- borda, o pai tinha borda, e o filho dentro dele também. Um contorno
+	-- separa; três empilhados desenham uma grade.
+	Stroke = 2,
+
+	-- Espaçamento, em múltiplos de 4. Qualquer valor fora desta escada é um
+	-- valor arbitrário e vai desalinhar com o vizinho mais cedo ou mais tarde.
+	SpaceTight = 4,
+	Space = 8,
+	SpaceWide = 16,
+
+	-- Tipografia. Quatro degraus, sem nada entre eles.
+	TextTitle = 28,
+	TextHeader = 20,
+	TextBody = 15,
+	TextCaption = 12,
 }
 
 Theme.RarityColors = {
@@ -77,7 +153,16 @@ Theme.Font = {
 -- around 44-48). Thumbs need a bigger hit box than a cursor, and it costs the
 -- mouse case nothing.
 Theme.ButtonHeight = 44
-Theme.RailButtonSize = 52
+
+-- 44, não 52.
+--
+-- Cinquenta e dois pixels por botão, quatro botões e o espaçamento entre eles
+-- davam uma coluna de mais de duzentos pixels colada na borda esquerda — em
+-- landscape de celular isso é metade da altura útil da tela ocupada por
+-- navegação. Quarenta e quatro continua sendo o alvo de toque mínimo
+-- recomendado (Apple HIG e Material param nessa faixa), então não se perde
+-- nada de usabilidade e a coluna encolhe um sexto.
+Theme.RailButtonSize = 44
 
 function Theme.isTouchDevice(): boolean
 	-- TouchEnabled without a keyboard is the standard "real phone/tablet"

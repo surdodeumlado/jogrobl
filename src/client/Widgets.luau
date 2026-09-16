@@ -108,13 +108,16 @@ function Widgets.statPill(parent: Instance, props)
 	pill.BorderSizePixel = 0
 	pill.Parent = parent
 
-	Theme.corner(pill, 14)
-	Theme.stroke(pill, 3)
+	Theme.corner(pill, Theme.Scale.Radius)
+	-- Contorno fino, não grosso. Era 3px em volta de cada pílula, o que soma
+	-- 6px de linha escura entre dois elementos vizinhos e é metade da sensação
+	-- de "tudo tem borda".
+	Theme.stroke(pill, Theme.Scale.Stroke)
 	Theme.gloss(pill)
 	-- Before the content, so the text draws over it rather than under.
-	Theme.bevel(pill, 6, 14)
+	Theme.bevel(pill, 5, Theme.Scale.Radius)
 
-	local chipSize = 30
+	local chipSize = 26
 	local chip = Theme.chip(pill, chipSize, Theme.Colors.PanelDeep)
 
 	local icon = Widgets.label(chip, {
@@ -127,25 +130,41 @@ function Widgets.statPill(parent: Instance, props)
 	})
 	icon.ZIndex = chip.ZIndex + 1
 
-	-- Small-caps label above the number. Two type sizes doing two different
-	-- jobs is most of what separates a designed readout from a bare number.
-	local caption = Widgets.label(pill, {
-		Name = "Caption",
-		Text = props.Caption or "",
-		Size = UDim2.new(1, -48, 0, 11),
-		Position = UDim2.new(0, 44, 0, 5),
-		TextSize = 10,
-		Color = Color3.new(1, 1, 1),
-	})
-	caption.TextTransparency = 0.35
-	caption.ZIndex = pill.ZIndex + 1
+	-- A legenda é OPCIONAL agora, e o padrão é não ter.
+	--
+	-- Ela existia para dar duas alturas de texto ao componente ("duas escalas
+	-- fazendo trabalhos diferentes"), e o argumento vale para um card de loja.
+	-- Não vale para a pílula de Cash: um ícone de moeda com um valor em dólar ao
+	-- lado não precisa da palavra CASH embaixo, e a palavra custava o dobro da
+	-- altura para dizer o que o ícone já dizia.
+	--
+	-- Quem realmente precisa de rótulo continua podendo pedir; sem ele o valor
+	-- ocupa a pílula inteira, centrado verticalmente, e a pílula pode ser baixa.
+	local hasCaption = props.Caption ~= nil and props.Caption ~= ""
+	local textLeft = chipSize + 14
+	local caption: TextLabel? = nil
+
+	if hasCaption then
+		caption = Widgets.label(pill, {
+			Name = "Caption",
+			Text = props.Caption,
+			Size = UDim2.new(1, -(textLeft + 10), 0, 11),
+			Position = UDim2.new(0, textLeft, 0, 5),
+			TextSize = 10,
+			Color = Color3.new(1, 1, 1),
+		})
+		;(caption :: TextLabel).TextTransparency = 0.35
+		;(caption :: TextLabel).ZIndex = pill.ZIndex + 1
+	end
 
 	local value = Widgets.label(pill, {
 		Name = "Value",
 		Text = "",
-		Size = UDim2.new(1, -48, 0, 22),
-		Position = UDim2.new(0, 44, 0, 15),
-		TextSize = 20,
+		Size = if hasCaption
+			then UDim2.new(1, -(textLeft + 10), 0, 22)
+			else UDim2.new(1, -(textLeft + 10), 1, 0),
+		Position = if hasCaption then UDim2.new(0, textLeft, 0, 15) else UDim2.new(0, textLeft, 0, 0),
+		TextSize = Theme.Scale.TextHeader,
 		Font = Theme.Font.Header,
 	})
 	value.TextStrokeColor3 = Color3.new(0, 0, 0)
