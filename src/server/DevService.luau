@@ -33,6 +33,7 @@ local PlayerStateService = require(script.Parent.PlayerStateService)
 local WorldBuilder = require(script.Parent.WorldBuilder)
 local TravelService = require(script.Parent.TravelService)
 local Notifier = require(script.Parent.Notifier)
+local LeaderboardService = require(script.Parent.LeaderboardService)
 local WorldAudit = require(script.Parent.WorldAudit)
 local EconomyAudit = require(script.Parent.EconomyAudit)
 local ZoneConfig = require(ReplicatedStorage.Shared.ZoneConfig)
@@ -249,6 +250,7 @@ local HELP = table.concat({
 	"/proximo e /voltar — anda um mundo na escada",
 	"/veloz [n] — velocidade de caminhada (padrão 60, /veloz 16 volta ao normal)",
 	"/censo — roda WorldAudit e EconomyAudit agora (use depois de andar a escada)",
+	"/zerar confirmar — APAGA seu progresso e limpa seus placares (irreversível)",
 	"/mundos — lista a escada numerada",
 	"/ajuda — esta lista",
 }, "\n")
@@ -282,6 +284,40 @@ local function handle(player: Player, message: string): string?
 		end
 		humanoid.WalkSpeed = speed
 		return `velocidade {speed}`
+	elseif command == "zerar" then
+		-- Devolve ESTA conta ao estado de jogador novo. Irreversível.
+		--
+		-- Existe para um problema específico do lançamento: testar com /tudo
+		-- grava 10^15 de Cash e 60 renascimentos no perfil DE VERDADE, e o
+		-- placar global lê do DataStore. Sem isto, a conta de quem desenvolveu o
+		-- jogo lidera o ranking permanentemente no dia em que o primeiro
+		-- jogador entra — o que não é uma vantagem discreta, é a primeira coisa
+		-- que todo mundo vê.
+		--
+		-- Exige a palavra "confirmar" de propósito. Todo o resto deste módulo é
+		-- reversível: /tudo se desfaz zerando, /ir se desfaz voltando. Este
+		-- comando apaga progresso real e não tem volta, então não pode ser
+		-- alcançável por um erro de digitação.
+		if string.lower(argument) ~= "confirmar" then
+			return "isto APAGA todo o seu progresso e não tem volta. Digite: /zerar confirmar"
+		end
+
+		local ok = PlayerDataManager.ResetProfile(player)
+		if not ok then
+			return "perfil não está carregado"
+		end
+
+		-- O placar é outro banco, e ele NÃO aceita zero: a escrita dele ignora
+		-- valores <= 0, então limpar o perfil sozinho deixaria a pontuação
+		-- antiga lá para sempre. Só RemoveAsync tira.
+		local removed, failed = LeaderboardService.ClearPlayer(player.UserId)
+
+		PlayerStateService.Refresh(player)
+		warn(
+			`[Dev] perfil de {player.Name} zerado. Placares limpos: {removed}, falhas: {failed}.`
+				.. ` Saia e entre de novo para o personagem recomeçar do zero.`
+		)
+		return `conta zerada. Placares limpos: {removed} (falhas: {failed}). Saia e entre de novo.`
 	elseif command == "censo" then
 		-- Reexecuta as auditorias AGORA, em vez de só no boot.
 		--
@@ -370,7 +406,7 @@ function DevService.Start()
 	-- a mesma função, então não há duas implementações para divergir.
 	local TextChatService = game:GetService("TextChatService")
 
-	for _, name in { "tudo", "ir", "proximo", "voltar", "veloz", "mundos", "censo", "ajuda" } do
+	for _, name in { "tudo", "ir", "proximo", "voltar", "veloz", "mundos", "censo", "zerar", "ajuda" } do
 		local chatCommand = Instance.new("TextChatCommand")
 		chatCommand.Name = `Dev_{name}`
 		chatCommand.PrimaryAlias = `/{name}`

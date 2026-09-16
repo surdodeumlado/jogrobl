@@ -249,6 +249,43 @@ local function onPlayerRemoving(player: Player)
 	end
 end
 
+-- Devolve o perfil de um jogador ao estado de conta nova.
+--
+-- Escreve os valores do PROFILE_TEMPLATE por cima do perfil VIVO, em vez de
+-- apagar a chave do DataStore. A diferença importa: a sessão continua travada
+-- e válida, o ProfileService salva normalmente na saída, e não existe janela em
+-- que o jogador esteja no jogo com um perfil que não existe mais.
+--
+-- Cada tabela é copiada, nunca compartilhada. Atribuir o template direto faria
+-- todos os perfis resetados apontarem para as MESMAS tabelas — a primeira moeda
+-- que um deles ganhasse apareceria em todos.
+--
+-- IRREVERSÍVEL. O único chamador é a limpeza de conta de desenvolvimento em
+-- DevService, que é Studio-only e exige confirmação explícita.
+function PlayerDataManager.ResetProfile(player: Player): boolean
+	local profile = profiles[player]
+	if profile == nil then
+		return false
+	end
+
+	local function copy(value: any): any
+		if typeof(value) ~= "table" then
+			return value
+		end
+		local clone = {}
+		for key, inner in value do
+			clone[key] = copy(inner)
+		end
+		return clone
+	end
+
+	for key, value in PROFILE_TEMPLATE :: any do
+		(profile.Data :: any)[key] = copy(value)
+	end
+
+	return true
+end
+
 function PlayerDataManager.Start()
 	Players.PlayerAdded:Connect(onPlayerAdded)
 	Players.PlayerRemoving:Connect(onPlayerRemoving)

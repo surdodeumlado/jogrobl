@@ -419,6 +419,34 @@ local function attachChampions()
 	end
 end
 
+-- Apaga as entradas de um jogador em TODOS os placares.
+--
+-- Existe por causa de uma assimetria que não é óbvia e que morde exatamente no
+-- lançamento: o placar é um OrderedDataStore SEPARADO do perfil, e a escrita
+-- dele tem um `if value <= 0 then return end` — ou seja, zerar o perfil não
+-- zera o placar, porque um valor zero simplesmente nunca é escrito. Uma conta
+-- de teste com Cash de desenvolvimento ficaria em primeiro lugar para sempre,
+-- visível para todos os jogadores, mesmo depois de o save ser limpo.
+--
+-- Só o que remove é RemoveAsync. Chamado pela limpeza de conta em DevService.
+function LeaderboardService.ClearPlayer(userId: number): (number, number)
+	local removed, failed = 0, 0
+
+	for boardId, store in stores do
+		local ok, err = pcall(function()
+			store:RemoveAsync(tostring(userId))
+		end)
+		if ok then
+			removed += 1
+		else
+			failed += 1
+			warn(`[Leaderboard] não consegui limpar {boardId} de {userId}: {err}`)
+		end
+	end
+
+	return removed, failed
+end
+
 function LeaderboardService.Start()
 	for boardId, definition in BOARDS do
 		local success, store = pcall(function()
