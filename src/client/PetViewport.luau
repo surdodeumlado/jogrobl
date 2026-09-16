@@ -112,13 +112,22 @@ local MARGIN = 1.22
 -- De quanto em quanto tempo a visibilidade é reavaliada.
 local VISIBILITY_INTERVAL = 0.25
 
+-- Liga um relatório por pet montado, no Output. Desligado em produção: ele
+-- imprime uma linha por card e a aba tem dezenas.
+local DEBUG = false
+
 type Entry = {
 	Viewport: ViewportFrame,
 	Camera: Camera,
 	Model: Model?,
 	Focus: Vector3,
+	Size: Vector3,
 	Distance: number,
 	Height: number,
+	-- Se a distância já foi calculada contra o tamanho REAL do quadro. Falso
+	-- até o painel abrir pela primeira vez, porque antes disso AbsoluteSize é
+	-- zero e a proporção usada é um chute.
+	Framed: boolean,
 	Visible: boolean,
 }
 
@@ -142,7 +151,7 @@ local started = false
 --      um pet com asas cabe de frente, e a ponta da asa sai do quadro quarenta
 --      e cinco graus depois. Usar sqrt(x²+z²) enquadra a pior pose, então
 --      nenhuma pose corta.
-local function frameFor(size: Vector3, aspect: number): (number, number)
+local function frameFor(size: Vector3, aspect: number): number
 	local halfFov = math.rad(FOV) / 2
 
 	-- A largura que importa é a da pior rotação possível.
@@ -155,7 +164,7 @@ local function frameFor(size: Vector3, aspect: number): (number, number)
 
 	-- Piso, senão um pet minúsculo é filmado de dentro dele mesmo.
 	local distance = math.max(forHeight, forWidth) * MARGIN
-	return math.max(distance, 1.5), size.Y
+	return math.max(distance, 1.5)
 end
 
 -- Tira do clone tudo que não é aparência.
@@ -243,8 +252,10 @@ function PetViewport.Create(host: GuiObject, size: UDim2, position: UDim2, ancho
 		Camera = camera,
 		Model = nil,
 		Focus = Vector3.zero,
+		Size = Vector3.one,
 		Distance = 8,
 		Height = 2,
+		Framed = false,
 		Visible = false,
 	}
 
@@ -311,22 +322,54 @@ function PetViewport.Show(viewport: ViewportFrame, petId: string, tint: Color3?)
 		return false
 	end
 
-	-- Centrado na origem em vez de filmado onde estiver: o modelo pode vir com
-	-- um pivô em qualquer lugar, e mover a câmera até ele daria um
-	-- enquadramento diferente por pet.
-	model:PivotTo(model:GetPivot() * CFrame.new(-model:GetPivot():PointToObjectSpace(boxCFrame.Position)))
-
-	local absolute = viewport.AbsoluteSize
-	local aspect = if absolute.Y > 0 then absolute.X / absolute.Y else 1
-	local distance, height = frameFor(boxSize, aspect)
-
+	-- A CÂMERA VAI ATÉ O MODELO. O modelo não é movido.
+	--
+	-- Era aqui o defeito de "o pet não aparece", e era meu. A versão anterior
+	-- tentava trazer o bicho para a origem com:
+	--
+	--     model:PivotTo(pivot * CFrame.new(-pivot:PointToObjectSpace(centro)))
+	--
+	-- que é uma translação no espaço LOCAL do pivô. Desenvolvendo a conta, o
+	-- centro da caixa termina em `pivot.Position` — e não na origem. A câmera,
+	-- que olhava fixo para Vector3.zero, ficava apontada para um lugar onde não
+	-- havia nada. Um modelo cujo autor o deixou perto da origem aparecia como um
+	-- fragmento fora de foco: foi exatamente o "pontinho na orelha do gato".
+	--
+	-- A correção não é consertar a translação: é não precisar dela. Olhar para o
+	-- centro real da caixa elimina a classe inteira de erro de pivô, funciona com
+	-- qualquer origem que o autor tenha usado, e é uma linha a menos de
+	-- matemática que pode estar errada.
 	entry.Model = model
-	entry.Focus = Vector3.zero
-	entry.Distance = distance
-	entry.Height = height
+	entry.Focus = boxCFrame.Position
+	entry.Size = boxSize
+	entry.Height = boxSize.Y
+
+	-- AbsoluteSize é (0,0) enquanto o painel não foi disposto, e o painel começa
+	-- fechado — ou seja, no primeiro Show ele é SEMPRE zero. A distância é
+	-- recalculada no laço assim que o quadro tem tamanho real; este valor é só o
+	-- ponto de partida.
+	entry.Distance = frameFor(boxSize, 1)
+	entry.Framed = false
 
 	model.Parent = viewport
 	viewport.ImageTransparency = 0
+
+	if DEBUG then
+		local parts, meshes = 0, 0
+		for _, descendant in model:GetDescendants() do
+			if descendant:IsA("BasePart") then
+				parts += 1
+				if descendant:IsA("MeshPart") then
+					meshes += 1
+				end
+			end
+		end
+		warn(
+			`[PetViewport] {petId}: {parts} peça(s) ({meshes} mesh), caixa {string.format("%.1f x %.1f x %.1f", boxSize.X, boxSize.Y, boxSize.Z)}`
+				.. `, centro {string.format("%.1f,%.1f,%.1f", boxCFrame.Position.X, boxCFrame.Position.Y, boxCFrame.Position.Z)}`
+				.. `, distância {string.format("%.1f", entry.Distance)}, quadro {viewport.AbsoluteSize.X}x{viewport.AbsoluteSize.Y}`
+		)
+	end
 
 	return true
 end
@@ -369,6 +412,18 @@ function PetViewport.Start()
 
 			if not entry.Visible or entry.Model == nil then
 				continue
+			end
+
+			-- Reenquadra UMA vez, quando o quadro finalmente tem tamanho.
+			--
+			-- O painel nasce fechado, então no momento do Show o AbsoluteSize é
+			-- (0,0) e a proporção usada foi 1. Num quadro que não seja quadrado
+			-- isso erra a distância — e errar para menos é o bicho estourando as
+			-- bordas. Feito aqui porque é o primeiro instante em que o valor
+			-- existe, e só uma vez por modelo.
+			if not entry.Framed and viewport.AbsoluteSize.Y > 0 then
+				entry.Framed = true
+				entry.Distance = frameFor(entry.Size, viewport.AbsoluteSize.X / viewport.AbsoluteSize.Y)
 			end
 
 			-- Um pouco acima do centro e olhando para baixo, que é como uma

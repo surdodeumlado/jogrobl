@@ -886,6 +886,29 @@ local function adoptModel(source: Instance, root: CFrame, scale: number, resourc
 		-- crystal in gold instead of a gold-coloured slab.
 		part:SetAttribute(TINT_ATTRIBUTE, true)
 
+		-- E UM POUCO DE LUZ PRÓPRIA, que é o que faltava.
+		--
+		-- O relato foi que o minério decorativo brilha e o minerável fica
+		-- apagado, e a causa é esta: as lascas decorativas são construídas com
+		-- Material.Neon, e o minério construído por peças tem um núcleo Neon
+		-- dentro de uma casca sombreada. Já o cristal buscado da loja mantinha o
+		-- material que o autor dele usou — quase sempre Plastic — e recebia só a
+		-- repintura. Cor sem emissão contra um mundo de ambiente 86 lê como
+		-- pedra apagada, por mais roxa que esteja.
+		--
+		-- Por que NÃO virar Neon inteiro: Neon descarta o sombreado do mesh e
+		-- entrega uma silhueta chapada. Perderíamos exatamente o motivo de ter
+		-- buscado um modelo em vez de empilhar peças.
+		--
+		-- Glass com reflectance faz o oposto: mantém o volume, pega a luz do
+		-- ambiente e devolve brilho nas quinas. É o mesmo tratamento que o SHELL
+		-- do minério de peças já usa, aplicado agora também ao buscado — um
+		-- sistema, não dois.
+		if part.Material == Enum.Material.Plastic or part.Material == Enum.Material.SmoothPlastic then
+			part.Material = Enum.Material.Glass
+			part.Reflectance = SHELL_REFLECTANCE
+		end
+
 		if part ~= node then
 			local offset = origin:ToObjectSpace(part.CFrame)
 			part.Parent = node
@@ -893,6 +916,37 @@ local function adoptModel(source: Instance, root: CFrame, scale: number, resourc
 			part.CFrame = root * offset
 			part:SetAttribute("FacetOrder", math.floor(offset.Position.Magnitude * 100))
 		end
+	end
+
+	-- Um núcleo aceso dentro da pedra buscada.
+	--
+	-- O minério construído por peças sempre teve isto (ver o push com
+	-- Material.Neon e isCore=true) e o buscado nunca teve — é a outra metade do
+	-- "o decorativo brilha e o minerável não". Uma esfera Neon pequena, presa
+	-- ao centro, vista através das facetas translúcidas: o brilho vem de dentro
+	-- em vez de a superfície inteira acender.
+	--
+	-- Uma peça por nó, e o nome é CORE_NAME — que é o que faz o veio rico
+	-- repintar este núcleo junto com o resto quando a pedra vira dourada.
+	if tint ~= nil then
+		local core = Instance.new("Part")
+		core.Name = OreModel.CORE_NAME
+		core.Shape = Enum.PartType.Ball
+		-- Bem menor que a pedra: é uma brasa dentro dela, não uma segunda pedra.
+		local reach = math.max(node.Size.X, node.Size.Y, node.Size.Z)
+		core.Size = Vector3.one * math.max(reach * 0.34, 0.6)
+		core.CFrame = root
+		core.Color = tint:Lerp(Color3.new(1, 1, 1), 0.45)
+		core.Material = Enum.Material.Neon
+		core.Transparency = 0.25
+		core.Anchored = true
+		core.CanCollide = false
+		core.CanQuery = false
+		core.CanTouch = false
+		core.CastShadow = false
+		core:SetAttribute(OreModel.BASE_TRANSPARENCY, core.Transparency)
+		core:SetAttribute(TINT_ATTRIBUTE, true)
+		core.Parent = node
 	end
 
 	node.Name = `Gem_{resourceId}`

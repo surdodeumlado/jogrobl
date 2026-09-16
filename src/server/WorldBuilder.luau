@@ -2124,7 +2124,11 @@ local function standProp(
 	size: number,
 	parent: Instance,
 	name: string,
-	yaw: number?
+	yaw: number?,
+	-- Quanto ENTERRAR abaixo do chão. O padrão de 0.4 é só para tirar a peça do
+	-- plano exato da grama; valores maiores servem para o que é TERRENO e não
+	-- objeto — ver a duna.
+	sink: number?
 ): Instance?
 	local prop = AssetLoader.Fitted(template, size)
 	if prop == nil then
@@ -2163,7 +2167,7 @@ local function standProp(
 			-- Multiplicar pela rotação original no fim mantém de pé o que foi
 			-- desenhado de pé, e o giro aleatório continua sendo em torno do eixo
 			-- vertical do MUNDO, que é onde ele tem que ser.
-			local stand = CFrame.new(spot + Vector3.new(0, lift + gap - 0.4, 0)) * turn * pivot.Rotation
+			local stand = CFrame.new(spot + Vector3.new(0, lift + gap - (sink or 0.4), 0)) * turn * pivot.Rotation
 			;(prop :: Model):PivotTo(stand)
 		end)
 		if not placedOk then
@@ -2175,7 +2179,7 @@ local function standProp(
 		-- Mesma regra da versão em Model: a rotação que a peça já tinha é mantida
 		-- e o giro só acrescenta guinada.
 		local rotation = part.CFrame.Rotation
-		part.CFrame = CFrame.new(spot + Vector3.new(0, part.Size.Y / 2 - 0.4, 0)) * turn * rotation
+		part.CFrame = CFrame.new(spot + Vector3.new(0, part.Size.Y / 2 - (sink or 0.4), 0)) * turn * rotation
 	end
 
 	prop.Parent = parent
@@ -3458,7 +3462,8 @@ local function scatterPack(
 	minSize: number,
 	maxSize: number,
 	clearance: number,
-	tint: (Color3 | false)?
+	tint: (Color3 | false)?,
+	sink: number?
 )
 	local models = propsNamed(`pack_{packageName}`, { packageName }, "", false, 12)
 	if #models == 0 then
@@ -3483,7 +3488,9 @@ local function scatterPack(
 			spot,
 			rng:NextNumber(minSize, maxSize),
 			parent,
-			`{zoneId}_{packageName}`
+			`{zoneId}_{packageName}`,
+			nil,
+			sink
 		)
 		if prop ~= nil then
 			-- `false` significa MANTER a cor original do asset. A duna é o caso:
@@ -3526,7 +3533,19 @@ local function buildWorldIdentity(
 		-- Por isso são muitas e pequenas em vez de poucas e grandes, e por isso
 		-- o `false` — uma duna repintada deixa de ser areia.
 		scatterPack(zoneId, definition, keepouts, parent, "SandDune",
-			math.floor(12 * desert), 10, 17, 11, false)
+			math.floor(12 * desert), 10, 17, 11, false,
+			-- Enterrada 2,2 studs, e isso resolve duas coisas de uma vez.
+			--
+			-- Visual: uma duna é TERRENO, não um objeto pousado. Apoiada na
+			-- superfície ela lê como uma pedra grande e lisa largada ali;
+			-- encravada, a areia parece subir do chão.
+			--
+			-- Técnico: a auditoria acusou faces coplanares entre Zone21_Top e
+			-- Zone21_Dune. A caixa delimitadora de um MeshPart tem fundo plano
+			-- mesmo quando a malha não tem, então a 0,4 de afundamento esse fundo
+			-- podia cair perto demais do plano da ilha. A 2,2 não existe
+			-- sobreposição possível, e não foi preciso mexer na geometria da ilha.
+			2.2)
 
 		-- Caminhos de pedra: achatados no chão, então praticamente não ocupam
 		-- espaço de jogo e quebram a superfície lisa.
@@ -3754,23 +3773,68 @@ local function buildWorldIdentity(
 	if decor.Planets == true then
 		local planets = propsNamed("planets", { "Planets" }, "", false, 40)
 		if #planets > 0 then
-			for index = 1, 5 do
-				local bearing = index / 5 * math.pi * 2 + 1.1
-				local distance = rng:NextNumber(620, 900)
+			-- Cada planeta é um degrau DIFERENTE em altura, distância e tamanho.
+			--
+			-- A versão anterior sorteava altura entre 120 e 300 para os cinco, e
+			-- o resultado foi o que se viu: cinco corpos praticamente na mesma
+			-- faixa. Sorteio uniforme não produz dispersão — produz média. Com
+			-- cinco amostras num intervalo de 180 studs, a chance de sair algo
+			-- que pareça espalhado é baixa.
+			--
+			-- Então a dispersão é AUTORADA, não sorteada. Cinco entradas, cada
+			-- uma com sua altura, distância e escala, cobrindo faixas que não se
+			-- encostam — e o sorteio fica só para o desvio pequeno dentro de cada
+			-- uma, que é o que tira a regularidade sem desfazer a composição.
+			--
+			-- Perto e pequeno embaixo, longe e grande em cima: é o que dá
+			-- profundidade. Um corpo grande e baixo pareceria uma ilha ao lado.
+			local ARRANGEMENT = {
+				-- bearing, distância, altura, escala
+				{ 0.4, 640, 70, 110 },
+				{ 1.9, 1020, 330, 300 },
+				{ 3.1, 760, 160, 150 },
+				{ 4.4, 1180, 520, 360 },
+				{ 5.6, 880, 240, 190 },
+			}
+
+			for index, slot in ARRANGEMENT do
+				local bearing = slot[1] + rng:NextNumber(-0.25, 0.25)
+				local distance = slot[2] * rng:NextNumber(0.92, 1.08)
+				local height = slot[3] * rng:NextNumber(0.85, 1.15)
+				local scale = slot[4] * rng:NextNumber(0.85, 1.15)
+
 				local spot = centre
 					+ Vector3.new(math.cos(bearing), 0, math.sin(bearing)) * distance
-					+ Vector3.new(0, rng:NextNumber(120, 300), 0)
+					+ Vector3.new(0, height, 0)
 
 				local prop = standProp(
 					anyProp(planets) :: Instance,
 					spot,
-					rng:NextNumber(120, 260),
+					scale,
 					parent,
 					`{zoneId}_Planet`
 				)
+
 				-- Sem tintTo: um planeta repintado na paleta do mundo vira uma
 				-- bola roxa. A cor própria dele é o que o faz ler como planeta.
-				if prop == nil then
+				if prop ~= nil then
+					-- Inclinado em dois eixos. Sem isso todos apontam o mesmo polo
+					-- para o mesmo lado, e um anel de Saturno paralelo ao de outro
+					-- Saturno denuncia que foram colocados, não que estão lá.
+					if prop:IsA("Model") then
+						pcall(function()
+							local model = prop :: Model
+							model:PivotTo(
+								model:GetPivot()
+									* CFrame.Angles(
+										rng:NextNumber(-0.7, 0.7),
+										rng:NextNumber(0, math.pi * 2),
+										rng:NextNumber(-0.5, 0.5)
+									)
+							)
+						end)
+					end
+				else
 					warn(`[WorldBuilder] planeta {index} não pôde ser montado em {zoneId}.`)
 				end
 			end

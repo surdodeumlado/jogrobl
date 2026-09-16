@@ -432,13 +432,42 @@ function UI.Create()
 			Size = UDim2.fromOffset(38, 38),
 			Position = UDim2.new(1, -12, 0.5, 0),
 			AnchorPoint = Vector2.new(1, 0.5),
-			TextSize = 26,
+			TextSize = 30,
 			TextScaled = false,
 			NoPadding = true,
 			Font = Theme.Font.Header,
 			Radius = Theme.Scale.Radius,
 		})
 		closeButton.ZIndex = 8
+
+		-- O X é o botão. Não é um quadrado COM um X dentro.
+		--
+		-- Trocar o caractere resolveu o quadradinho de glifo ausente, e ainda
+		-- assim continuava parecendo um bloco: o botão tem fundo vermelho sólido,
+		-- contorno e brilho, então o que se enxerga é um quadrado colorido e o X
+		-- é detalhe dentro dele. Num cabeçalho que já é uma faixa de cor, isso
+		-- são duas caixas empilhadas.
+		--
+		-- O alvo de toque de 38px CONTINUA, que é o que importa no celular —
+		-- só a pintura sai. A área clicável não encolheu nem um pixel.
+		closeButton.BackgroundTransparency = 1
+		closeButton.TextColor3 = Color3.new(1, 1, 1)
+		closeButton.TextTransparency = 0.25
+		for _, child in closeButton:GetChildren() do
+			-- O contorno e o brilho vêm de Widgets.button e são o resto da caixa.
+			if child:IsA("UIStroke") or child:IsA("UIGradient") or child:IsA("Frame") then
+				child:Destroy()
+			end
+		end
+
+		-- O retorno visual passa a ser o próprio X acendendo, já que não há mais
+		-- fundo para mudar de cor.
+		closeButton.MouseEnter:Connect(function()
+			closeButton.TextTransparency = 0
+		end)
+		closeButton.MouseLeave:Connect(function()
+			closeButton.TextTransparency = 0.25
+		end)
 
 		local body = Instance.new("Frame")
 		body.Name = "Body"
