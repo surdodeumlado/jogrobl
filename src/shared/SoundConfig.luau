@@ -27,6 +27,38 @@
 -- once: a private "you levelled up" for the player, and a public "something
 -- big happened over there" for everyone in earshot.
 
+--------------------------------------------------------------------------
+-- A HIERARQUIA. O volume é decidido pela FREQUÊNCIA, não pela importância.
+--------------------------------------------------------------------------
+--
+-- É a mesma coisa vista de outro lado: um som que toca o tempo todo não pode
+-- ser alto, senão os raros não têm para onde subir. O teto é fixo, então cada
+-- decibel gasto num evento comum é um decibel que o evento raro não tem.
+--
+-- Quatro faixas, e todo som novo tem que declarar em qual entra:
+--
+--   0.08 - 0.20   CONSTANTE. Várias vezes por segundo ou por minuto. Golpe,
+--                 coleta, notificação, toque em NPC. Textura, não aviso.
+--   0.20 - 0.32   FREQUENTE. Alguns por minuto. Crítico, clique de UI,
+--                 teleporte, venda. Percebido sem interromper.
+--   0.32 - 0.45   EVENTO. Algumas vezes por sessão. Melhoria, veio rico,
+--                 recompensa, ovo raro. Faz a pessoa olhar.
+--   0.45 - 0.60   MARCO. Poucas vezes na vida do jogador, ou por hora.
+--                 Renascimento, mundo novo, pet lendário.
+--
+-- Dois desvios foram corrigidos ao escrever isto, e os dois eram da mesma
+-- forma: um som frequente ocupando a faixa de um raro.
+--
+--   * Crítico estava em 0.45, empatado com o renascimento. Um crítico acontece
+--     dezenas de vezes por minuto e um renascimento poucas vezes por sessão —
+--     com os dois no mesmo volume, o renascimento deixava de ser um marco.
+--   * Clique de UI e teleporte estavam na faixa de evento, e acontecem a cada
+--     poucos segundos.
+--
+-- O veio rico subiu, e por um motivo além da hierarquia: ele é espacial, então
+-- perde volume com a distância. Para chegar ao ouvido como um evento ele tem
+-- que sair da fonte mais alto que um som 2D da mesma faixa.
+
 export type SoundDefinition = {
 	AssetId: number,
 	Volume: number,
@@ -59,7 +91,7 @@ local SoundConfig: { [string]: SoundDefinition } = {
 	-- icon, a shop row and a claim button cannot end up with different clicks.
 	UiClick = {
 		AssetId = 88442833509532,
-		Volume = 0.35,
+		Volume = 0.26,
 		-- The same sample at the same pitch, pressed as often as a HUD button is
 		-- pressed, stops reading as feedback and starts reading as a rattle.
 		PitchVariation = 0.04,
@@ -76,7 +108,7 @@ local SoundConfig: { [string]: SoundDefinition } = {
 	-- more distinctive than the ordinary hit. The contrast is the reward.
 	Crit = {
 		AssetId = 3581383408,
-		Volume = 0.45,
+		Volume = 0.28,
 	},
 	Collect = {
 		AssetId = 134602992766192,
@@ -108,7 +140,7 @@ local SoundConfig: { [string]: SoundDefinition } = {
 	-- only by the player who rebirthed.
 	Rebirth = {
 		AssetId = 114390175182916,
-		Volume = 0.45,
+		Volume = 0.52,
 	},
 	-- Public half: heard by everyone near the player who rebirthed, fading
 	-- with distance. Kept well under the personal chime so that standing next
@@ -170,7 +202,7 @@ local SoundConfig: { [string]: SoundDefinition } = {
 	-- único lugar a editar.
 	RichVein = {
 		AssetId = 134085405153726,
-		Volume = 0.32,
+		Volume = 0.42,
 		Spatial = true,
 	},
 	-- Arriving anywhere by pad, including coming home.
@@ -179,7 +211,7 @@ local SoundConfig: { [string]: SoundDefinition } = {
 	-- happens constantly: every trip out and every trip back.
 	Teleport = {
 		AssetId = 74715602103425,
-		Volume = 0.3,
+		Volume = 0.22,
 	},
 	Notify = {
 		AssetId = 106553517979212,

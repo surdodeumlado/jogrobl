@@ -404,6 +404,30 @@ local function census()
 	local emitters = 0
 	local billboards = 0
 
+	-- Emissores contados por DONO, não só somados.
+	--
+	-- O total sozinho não serve para decidir nada. "1109 emissores" não diz se
+	-- são vinte ilhas com clima, quatro mil pedras com brilho, ou um pacote da
+	-- loja que chegou com trinta efeitos dentro — e as três respostas pedem
+	-- correções completamente diferentes. Uma delas é um número de config, outra
+	-- é uma linha de filtro, e a terceira não é problema nenhum.
+	--
+	-- Agrupado pelo NOME DO PAI com o dígito final cortado, porque os emissores
+	-- deste jogo nascem em famílias numeradas (Weather1..4, Haze, RichAura) e o
+	-- que interessa é a família, não a instância.
+	local emittersBySource: { [string]: number } = {}
+
+	local function noteEmitter(emitter: Instance)
+		emitters += 1
+		local host = emitter.Parent
+		local label = if host ~= nil then host.Name else "?"
+		-- "Zone7_GroundHaze2" -> "GroundHaze". O prefixo da zona e o índice só
+		-- fragmentariam a contagem em vinte e cinco linhas de um.
+		label = string.gsub(label, "^Zone%d+_", "")
+		label = string.gsub(label, "%d+$", "")
+		emittersBySource[label] = (emittersBySource[label] or 0) + 1
+	end
+
 	for _, child in Workspace:GetChildren() do
 		local group = child.Name
 		local count = 0
@@ -420,7 +444,7 @@ local function census()
 			elseif descendant:IsA("Light") then
 				lights += 1
 			elseif descendant:IsA("ParticleEmitter") then
-				emitters += 1
+				noteEmitter(descendant)
 			elseif descendant:IsA("BillboardGui") then
 				billboards += 1
 			end
@@ -457,6 +481,24 @@ local function census()
 	end
 	if emitters > 80 then
 		warn(`[WorldAudit] {emitters} emissores de partícula ativos ao mesmo tempo.`)
+
+		-- A discriminação só é impressa quando o número passa do teto: abaixo
+		-- dele ela é ruído, e acima dela é a única coisa acionável no relatório.
+		local sources: { string } = {}
+		for label in emittersBySource do
+			table.insert(sources, label)
+		end
+		table.sort(sources, function(a, b)
+			return emittersBySource[a] > emittersBySource[b]
+		end)
+
+		for index, label in sources do
+			-- Dez linhas bastam: a cauda longa nunca é o problema.
+			if index > 10 then
+				break
+			end
+			warn(string.format("    %-24s %5d", label, emittersBySource[label]))
+		end
 	end
 
 	if total >= PART_BUDGET_LOUD then

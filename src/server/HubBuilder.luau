@@ -1945,7 +1945,12 @@ local function buildPlazaDecor()
 				break
 			end
 		end
-		-- 34, not 26: the portal also has a row of zone banners spread across
+		-- 34 e não 26. A fileira de bandeiras de mundo que justificava esta folga
+	-- FOI REMOVIDA (ver PlazaProgress), então o número é hoje mais generoso do
+	-- que precisa ser. Mantido de propósito: apertá-lo aproximaria árvores do
+	-- portal para ganhar nada, e mexer no espaçamento do mundo gerado é risco
+	-- sem retorno. Se um dia algo voltar a ocupar essa faixa, a folga já existe.
+	-- Texto original: the portal also has a row of zone banners spread across
 		-- its approach (PlazaProgress), whose far ends reach about 25 studs to
 		-- either side of the pad. A margin that only cleared the pad itself
 		-- left room for a tree to grow through the last banner in the row.

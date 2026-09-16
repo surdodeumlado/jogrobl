@@ -157,7 +157,19 @@ local function auditOpening()
 	}
 
 	for _, step in ObjectiveConfig.Steps do
-		local needed = costOf[step.Id]
+		local unit = costOf[step.Id]
+		-- Multiplicado pelo Amount da etapa, e essa linha é a que torna o teste
+		-- honesto.
+		--
+		-- Sem ela o teste NÃO teria pego o defeito para o qual foi escrito: o
+		-- ovo custava 700 contra uma bolsa de cerca de 780, então um ovo passava
+		-- na checagem. O que falhava era pedir DUAS espécies — 1400 — e um teste
+		-- que ignora a quantidade exigida pela etapa mede outra coisa.
+		--
+		-- Continua sendo um piso: espécie não é ovo, e como o sorteio é
+		-- ponderado, N espécies custam na prática mais que N ovos. Se já não
+		-- fecha com o piso, não fecha de jeito nenhum.
+		local needed = if unit ~= nil then unit * math.max(step.Amount, 1) else nil
 		if needed ~= nil and needed > purse then
 			fail(
 				`objetivo "{step.Id}" custa {math.floor(needed)} e o jogador chega nele com {math.floor(purse)}`

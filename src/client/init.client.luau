@@ -667,14 +667,18 @@ local function renderPets(): boolean
 		end
 	end
 
-	-- A regra da afinidade dita uma vez, no cabeçalho, em vez de num tutorial.
+	-- Onde a afinidade vale, dito no cabeçalho — em UMA linha.
 	--
-	-- O painel de pets é onde a decisão é tomada, então é onde a regra tem que
-	-- estar. Só aparece quando o jogador está EM um mundo, porque fora deles a
-	-- frase não teria a que se referir.
+	-- O rótulo tem vinte e dois pixels de altura e TextSize 15: uma segunda
+	-- linha seria simplesmente cortada. Já tinha escrito a frase completa aqui
+	-- antes de conferir a altura, o que teria entregue metade de uma explicação.
+	--
+	-- Não é perda: a REGRA é ensinada onde ela é acionável — no aviso de chegada
+	-- ao mundo e no "⚡ 2.5x AQUI" de cada card. Este cabeçalho só precisa dizer
+	-- qual é o mundo de referência agora.
 	local summary = `Equipados {equippedCount}/{slots}  ·  Índice {discovered}/{totalSpecies}`
 	if hereWorld ~= nil then
-		summary ..= `\n⚡ Pets de {hereWorld} mineram 2.5x mais rápido aqui`
+		summary ..= `  ·  ⚡ {hereWorld}`
 	end
 	hud.PetsSummary.Text = summary
 

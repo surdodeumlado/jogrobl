@@ -147,6 +147,17 @@ function BossService.GetMaxHealth(): number
 end
 
 function BossService.Start()
+	-- Desligado por decisão de direção — ver a nota no topo de BossConfig.
+	--
+	-- Sai daqui e não de dentro do laço: sem o task.spawn não existe thread,
+	-- não existe timer, e não existe um caminho pelo qual um chefe possa nascer.
+	-- O resto do módulo continua carregado e correto, e as três chamadas que
+	-- ResourceNodeService faz seguem funcionando — RecordDamage não acha o nó,
+	-- IsBoss devolve false, OnDefeated nunca é alcançado.
+	if not BossConfig.Enabled then
+		return
+	end
+
 	task.spawn(function()
 		while true do
 			task.wait(BossConfig.IntervalSeconds)

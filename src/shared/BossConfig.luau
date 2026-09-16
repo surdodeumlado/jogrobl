@@ -13,6 +13,35 @@
 -- shared target and a reason to be in the same place.
 
 local BossConfig = {
+	--------------------------------------------------------------------
+	-- DESLIGADO.
+	--------------------------------------------------------------------
+	--
+	-- Decisão de direção do jogo, não de engenharia. O OREBOUND é sobre
+	-- mineração, descoberta, coleção e progressão — e um chefe de mundo puxa a
+	-- identidade para "arena", que é o oposto do que o jogo quer ser. O evento
+	-- de mineração que ocupa esse lugar é o VEIO RICO, que nasce do próprio ato
+	-- de minerar em vez de interrompê-lo.
+	--
+	-- Por que o código FICA, em vez de ser apagado:
+	--
+	--   * Ele é isolado de verdade. Não toca perfil nenhum, não grava nada, não
+	--     tem campo em save. As únicas amarras são três chamadas em
+	--     ResourceNodeService, e as três já devolvem o caminho normal quando o
+	--     nó não é um chefe — com a flag abaixo em false nenhum nó jamais é.
+	--     Desligar é seguro de um jeito que apagar não seria.
+	--   * Apagar é irreversível e mexeria no caminho mais quente do jogo (o
+	--     laço de dano), que é o último lugar onde vale correr risco na semana
+	--     do lançamento.
+	--
+	-- Ligar de novo é trocar este false por true. Nada mais.
+	--
+	-- Nota de fato, para quem reabrir esta decisão: com MinPlayers = 4 ele já
+	-- praticamente não existia. Um jogo recém-lançado raramente tem quatro
+	-- pessoas simultâneas no mesmo servidor, então o sistema estava consumindo
+	-- um laço e um evento para algo que quase nunca aparecia.
+	Enabled = false,
+
 	-- A group event needs a group. With one or two people online the boss is
 	-- an unkillable wall standing in the plaza, which is worse than no boss at
 	-- all — so it simply does not spawn below this. It turns itself on when
