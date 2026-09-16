@@ -45,7 +45,13 @@ local UnlockConfig: { UnlockDefinition } = {
 		PanelId = "Pets",
 		DisplayName = "Pets",
 		Kind = "PetSpecies",
-		Amount = 2,
+		-- Uma espécie, alinhado com o objetivo guiado.
+		--
+		-- O texto do objetivo diz "choque UM ovo" e o painel abria só na segunda
+		-- espécie: o jogador cumpria exatamente o que foi pedido, recebia um pet
+		-- — e o lugar onde esse pet mora continuava trancado, sem explicação. A
+		-- promessa e a porta têm que ser a mesma coisa.
+		Amount = 1,
 		Goal = "Choque um ovo na Chocadeira",
 		Announce = "Índice de Pets liberado! Equipe quem minera por você.",
 	},

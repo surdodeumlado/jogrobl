@@ -65,7 +65,20 @@ for index, world in WorldCatalog.Worlds do
 		-- 45% of what the world itself cost, with a floor for the hub's egg,
 		-- whose world is free. Affordable within a few loads of arriving: an
 		-- egg you cannot buy until you are about to leave is an egg nobody buys.
-		Cost = math.max(700, math.floor(unlock * 0.45)),
+		--
+		-- O piso caiu de 700 para 450, e ele só afeta os dois primeiros ovos: do
+		-- terceiro mundo em diante os 45% do preço do mundo já passam disso
+		-- sozinhos, então a curva do resto do jogo não muda em nada.
+		--
+		-- Por que 450: ao chegar na etapa do ovo, o tutorial já pagou 200 + 400 e
+		-- a mineração rendeu umas três dezenas — cerca de 630 no bolso. A 700, o
+		-- próprio objetivo que o jogo acabou de dar era impossível de cumprir no
+		-- instante em que apareceu, e a única saída era minerar em silêncio. A 450
+		-- ele é comprável na hora e ainda sobra troco.
+		--
+		-- Este é o ponto exato em que a regra "o primeiro pet é o que decide o D1"
+		-- deixava de valer, e ela é a razão pela qual o ovo vem antes da loja.
+		Cost = math.max(450, math.floor(unlock * 0.45)),
 		Order = index,
 		World = world.Id,
 		Pool = pool,

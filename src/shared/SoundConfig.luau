@@ -157,6 +157,22 @@ local SoundConfig: { [string]: SoundDefinition } = {
 		AssetId = 134085405153726,
 		Volume = 0.55,
 	},
+	-- Um veio rico nascendo, tocado NO LUGAR dele.
+	--
+	-- Espacial de propósito, e é a coisa mais importante sobre este som: um veio
+	-- rico é estado compartilhado do servidor, todos na ilha veem o mesmo
+	-- cristal dourado, e um som que vem de uma direção faz duas pessoas olharem
+	-- para o mesmo ponto. Um 2D faria cada um ouvir um aviso particular.
+	--
+	-- Divide o id com NewWorld por enquanto, num volume mais baixo: os dois são
+	-- "apareceu algo", e isso é melhor que silêncio enquanto não há um id
+	-- próprio. Vale trocar por um som curto e metálico quando houver — este é o
+	-- único lugar a editar.
+	RichVein = {
+		AssetId = 134085405153726,
+		Volume = 0.32,
+		Spatial = true,
+	},
 	-- Arriving anywhere by pad, including coming home.
 	--
 	-- The routine half of what used to be one sound. Quieter, because this one

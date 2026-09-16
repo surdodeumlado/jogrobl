@@ -19,6 +19,7 @@ local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
 
 local Theme = require(script.Parent.Theme)
+local Audio = require(script.Parent.Audio)
 local ItemsConfig = require(ReplicatedStorage.Shared.ItemsConfig)
 local Generated = require(ReplicatedStorage.Shared.Generated)
 
@@ -241,6 +242,80 @@ function WorldFx.HatchEgg(eggId: string, petColor: Color3)
 	end)
 end
 
+--------------------------------------------------------------------------
+-- O momento em que um veio rico aparece
+--------------------------------------------------------------------------
+
+-- Um veio rico já ERA visível: fica dourado, ganha uma coroa de cacos e uma
+-- plaquinha. O que faltava era o INSTANTE. Ele simplesmente estava lá na
+-- próxima vez que você olhasse, e uma coisa que nunca "acontece" não é um
+-- evento — é decoração com valor melhor.
+--
+-- Sem remote nenhum, e isso é o ponto. A riqueza é um atributo no nó, e um
+-- atributo replica de graça: o cliente vê a mudança exatamente quando ela
+-- acontece no servidor, e só para os nós que estão carregados perto dele. É a
+-- mesma propriedade que a vida do nó usa, e é o que faz este efeito custar zero
+-- de rede mesmo com cinquenta jogadores.
+local RICH_ATTRIBUTE = "Rich"
+local RICH_FLASH_COLOR = Color3.fromRGB(255, 202, 64)
+
+-- Quão perto para valer o anúncio. O nó continua dourado de qualquer distância;
+-- isto é só o susto, e um susto a duzentos studs é ruído.
+local RICH_FLASH_RANGE = 140
+
+local function flashRichVein(node: BasePart)
+	local character = Players.LocalPlayer.Character
+	local rootPart = if character ~= nil then character:FindFirstChild("HumanoidRootPart") else nil
+	if rootPart == nil or not rootPart:IsA("BasePart") then
+		return
+	end
+	if ((rootPart :: BasePart).Position - node.Position).Magnitude > RICH_FLASH_RANGE then
+		return
+	end
+
+	Audio.PlayAt("RichVein", node.Position)
+
+	-- Um anel dourado que sobe e some. Feito de peça e tween, sem partícula e
+	-- sem asset, pela mesma razão que o efeito de renascimento: não há nada
+	-- aqui que possa ser moderado ou deixar de carregar.
+	local ring = Instance.new("Part")
+	ring.Name = "RichBurst"
+	ring.Shape = Enum.PartType.Cylinder
+	ring.Size = Vector3.new(0.4, 2, 2)
+	ring.CFrame = CFrame.new(node.Position) * CFrame.Angles(0, 0, math.rad(90))
+	ring.Color = RICH_FLASH_COLOR
+	ring.Material = Enum.Material.Neon
+	ring.Transparency = 0.15
+	ring.Anchored = true
+	ring.CanCollide = false
+	ring.CanQuery = false
+	ring.CanTouch = false
+	ring.CastShadow = false
+	ring.Parent = ensureFolder()
+
+	TweenService:Create(ring, TweenInfo.new(0.7, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Size = Vector3.new(0.4, 26, 26),
+		Transparency = 1,
+		CFrame = CFrame.new(node.Position + Vector3.new(0, 4, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+	}):Play()
+
+	task.delay(0.8, function()
+		ring:Destroy()
+	end)
+end
+
+local function watchNode(node: Instance)
+	if not node:IsA("BasePart") then
+		return
+	end
+
+	node:GetAttributeChangedSignal(RICH_ATTRIBUTE):Connect(function()
+		if node:GetAttribute(RICH_ATTRIBUTE) == true then
+			flashRichVein(node :: BasePart)
+		end
+	end)
+end
+
 function WorldFx.Start()
 	ensureFolder()
 
@@ -249,6 +324,15 @@ function WorldFx.Start()
 	-- property every frame means the last writer wins and the kick never
 	-- shows. One owner per property.
 	resourceCollectedRemote.OnClientEvent:Connect(onResourceCollected)
+
+	-- Os nós chegam ao longo do tempo: as ilhas são construídas sob demanda e o
+	-- StreamingEnabled entrega os filhos em vários quadros. Uma varredura única
+	-- aqui pegaria só os do saguão.
+	local nodesFolder = Workspace:WaitForChild("ResourceNodes")
+	for _, node in nodesFolder:GetChildren() do
+		watchNode(node)
+	end
+	nodesFolder.ChildAdded:Connect(watchNode)
 end
 
 return WorldFx

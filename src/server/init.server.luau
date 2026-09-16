@@ -74,6 +74,7 @@ local UnlockService = require(script.UnlockService)
 local DevService = require(script.DevService)
 local ConfigAudit = require(script.ConfigAudit)
 local WorldAudit = require(script.WorldAudit)
+local EconomyAudit = require(script.EconomyAudit)
 
 PlayerDataManager.Start()
 CharacterService.Start()
@@ -224,4 +225,5 @@ DevService.Start()
 -- Last, so their reports are the final thing in the output rather than buried
 -- under every other service's startup noise.
 ConfigAudit.Start()
+EconomyAudit.Run()
 WorldAudit.Run()

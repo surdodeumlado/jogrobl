@@ -347,7 +347,32 @@ function EconomyService.Rebirth(player: Player): boolean
 	-- multiplicative power on top of a compounding Cash multiplier collapsed
 	-- the eighth rebirth to ninety seconds.
 	profile.Data.OwnedPickaxes = { [PickaxeConfig.Default] = true }
-	profile.Data.EquippedPickaxe = PickaxeConfig.Default
+
+	-- Uma picareta comprada com ROBUX volta para a mão sozinha.
+	--
+	-- O que era: o renascimento reequipava a de madeira para todo mundo, inclusive
+	-- para quem tinha pagado pela Picareta do Vazio. A posse dela estava correta —
+	-- é re-derivada do passe e não de OwnedPickaxes, justamente para o reset não
+	-- poder apagá-la — mas ela saía da mão em TODO renascimento, e o jogador
+	-- precisava caminhar até o plinto da praça para equipar de novo.
+	--
+	-- Numa alça de prestígio isso acontece dezenas de vezes. O efeito prático é
+	-- que a coisa que a pessoa comprou fica desligada por padrão e volta só se
+	-- ela lembrar: do lado de dentro parece que o jogo tomou o item, e é o tipo
+	-- de coisa que vira pedido de reembolso em vez de reclamação.
+	--
+	-- Zerar as picaretas da ESCADA continua certo e não muda: elas são progresso,
+	-- e progresso é exatamente o que o renascimento troca pelo multiplicador. Um
+	-- passe não é progresso.
+	local equipAfter = PickaxeConfig.Default
+	for _, definition in PickaxeConfig.Tiers do
+		if definition.GamepassId ~= nil and profile.Data.OwnedGamepasses[definition.GamepassId] == true then
+			if definition.DamageMultiplier > PickaxeConfig.Resolve(equipAfter).DamageMultiplier then
+				equipAfter = definition.Id
+			end
+		end
+	end
+	profile.Data.EquippedPickaxe = equipAfter
 	-- Republished, not just written. The tool in the character is built from the
 	-- attribute, so a profile that resets without this leaves the player
 	-- swinging a sapphire pickaxe that deals wooden damage.

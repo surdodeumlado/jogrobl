@@ -83,7 +83,23 @@ ObjectiveConfig.Steps = {
 		TargetStationId = "Eggs",
 		Tag = "🥚 CHOQUE AQUI",
 		Kind = "PetSpecies",
-		Amount = 2,
+		-- UM, e não dois. A ordem acima está certa; a conta desta etapa não
+		-- estava.
+		--
+		-- O comentário ao lado já dizia "paga 900 contra um ovo que custa 700" —
+		-- preço de UM ovo — enquanto a exigência era de DUAS espécies. E espécie
+		-- não é ovo: o sorteio é ponderado, então o segundo ovo repete o primeiro
+		-- na maior parte das vezes e a etapa podia custar três ou quatro chocadas.
+		--
+		-- Simulando com os números reais: depois de Minerar (200) e Vender (400) o
+		-- jogador tem cerca de 630. Ele não conseguia comprar nem o PRIMEIRO ovo,
+		-- e a etapa seguinte pedia, na prática, de cinco a dez minutos de
+		-- mineração sem nenhuma recompensa no meio — exatamente nos minutos em que
+		-- ele está decidindo se fica.
+		--
+		-- Um ovo é o momento de ensino inteiro: o pet aparece, orbita, bate na
+		-- pedra junto. O segundo não ensina nada que o primeiro não tenha ensinado.
+		Amount = 1,
 		-- Pays 900 against an egg that costs 700, so hatching leaves the player
 		-- slightly up and holding a companion rather than broke.
 		RewardCash = 900,
